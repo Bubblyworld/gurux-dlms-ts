@@ -62,7 +62,23 @@ wait
 
 echo "Linking WASM module..."
 
-EXPORTED_FUNCTIONS="_dlms_last_error,_malloc,_free"
+EXPORTED_FUNCTIONS="_dlms_last_error,_malloc,_free,\
+_dlms_client_create,_dlms_client_destroy,\
+_dlms_client_set_int,_dlms_client_set_str,_dlms_client_get_int,\
+_dlms_client_snrm_request,_dlms_client_parse_ua,\
+_dlms_client_aarq_request,_dlms_client_parse_aare,\
+_dlms_client_release_request,_dlms_client_disconnect_request,\
+_dlms_client_get_data,_dlms_client_receiver_ready,\
+_dlms_object_create,_dlms_object_destroy,\
+_dlms_client_read,_dlms_client_write,_dlms_client_method,\
+_dlms_client_update_value,\
+_dlms_object_get_int,_dlms_object_get_double,_dlms_object_get_str,_dlms_object_get_bytes,\
+_dlms_object_set_int,_dlms_object_set_double,_dlms_object_set_str,_dlms_object_set_bytes,\
+_dlms_client_read_by_range,\
+_dlms_client_get_objects_request,_dlms_client_parse_objects,\
+_dlms_client_get_parsed_object_count,_dlms_client_get_parsed_object,\
+_dlms_server_create,_dlms_server_destroy,\
+_dlms_server_add_object,_dlms_server_initialize,_dlms_server_handle_request"
 
 EXPORTED_RUNTIME_METHODS="ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,HEAP8,HEAPU8,HEAP32"
 
