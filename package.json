@@ -1,0 +1,57 @@
+{
+  "name": "@bubblyworld/gurux-dlms-ts",
+  "version": "0.1.0",
+  "description": "A wasm build of the GuruxDLMS.c DLMS/COSEM protocol library with a TypeScript interface. Runs with zero dependencies in both node and web environments.",
+  "type": "module",
+  "main": "./dist/index.node.cjs",
+  "module": "./dist/index.node.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "node": {
+        "import": {
+          "types": "./dist/index.node.d.ts",
+          "default": "./dist/index.node.js"
+        },
+        "require": {
+          "types": "./dist/index.node.d.cts",
+          "default": "./dist/index.node.cjs"
+        }
+      },
+      "browser": {
+        "types": "./dist/index.browser.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "default": {
+        "types": "./dist/index.browser.d.ts",
+        "default": "./dist/index.browser.js"
+      }
+    }
+  },
+  "files": [
+    "dist/",
+    "build/gurux.js",
+    "build/gurux.wasm"
+  ],
+  "scripts": {
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:wasm": "cd build && ./build.sh",
+    "build:ts": "tsc && rollup -c && cp dist/index.node.d.ts dist/index.node.d.cts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["dlms", "cosem", "wasm", "meter", "gurux", "energy"],
+  "author": "Guy Paterson-Jones",
+  "license": "GPL-2.0",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.0.0",
+    "@types/node": "^20.0.0",
+    "rollup": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
