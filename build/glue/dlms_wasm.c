@@ -418,6 +418,7 @@ int dlms_object_create(int object_type, const char* obis) {
 
 void dlms_object_destroy(int obj_handle) {
     if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return;
+    obj_clear(objects[obj_handle]);
     free(objects[obj_handle]);
     objects[obj_handle] = NULL;
 }
