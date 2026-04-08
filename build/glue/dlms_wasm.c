@@ -129,7 +129,6 @@ int dlms_client_create(int client_addr, int server_addr,
         DLMS_CONFORMANCE_ACTION
     );
 
-    slot->settings.protocolVersion = 1;
     slot->settings.maxInfoTX = 512;
     slot->settings.maxInfoRX = 512;
     slot->settings.windowSizeTX = 1;
@@ -215,14 +214,34 @@ int dlms_client_parse_ua(int handle, const uint8_t* data, int len) {
         set_error("invalid client handle %d", handle);
         return -1;
     }
+    ClientSlot* slot = clients[handle];
+
+    if (!slot->reply) {
+        slot->reply = (gxReplyData*)calloc(1, sizeof(gxReplyData));
+        if (!slot->reply) {
+            set_error("malloc failed for reply data");
+            return -1;
+        }
+        reply_init(slot->reply);
+    } else {
+        reply_clear(slot->reply);
+        reply_init(slot->reply);
+    }
+
     gxByteBuffer bb;
     bb_init(&bb);
     bb_set(&bb, data, (uint32_t)len);
-    int ret = cl_parseUAResponse(&clients[handle]->settings, &bb);
+    int ret = cl_getData(&slot->settings, &bb, slot->reply);
+    bb_clear(&bb);
+    if (ret != 0) {
+        set_error("cl_getData (for UA) failed: %d", ret);
+        return ret;
+    }
+
+    ret = cl_parseUAResponse(&slot->settings, &slot->reply->data);
     if (ret != 0) {
         set_error("cl_parseUAResponse failed: %d", ret);
     }
-    bb_clear(&bb);
     return ret;
 }
 
@@ -249,14 +268,34 @@ int dlms_client_parse_aare(int handle, const uint8_t* data, int len) {
         set_error("invalid client handle %d", handle);
         return -1;
     }
+    ClientSlot* slot = clients[handle];
+
+    if (!slot->reply) {
+        slot->reply = (gxReplyData*)calloc(1, sizeof(gxReplyData));
+        if (!slot->reply) {
+            set_error("malloc failed for reply data");
+            return -1;
+        }
+        reply_init(slot->reply);
+    } else {
+        reply_clear(slot->reply);
+        reply_init(slot->reply);
+    }
+
     gxByteBuffer bb;
     bb_init(&bb);
     bb_set(&bb, data, (uint32_t)len);
-    int ret = cl_parseAAREResponse(&clients[handle]->settings, &bb);
+    int ret = cl_getData(&slot->settings, &bb, slot->reply);
+    bb_clear(&bb);
+    if (ret != 0) {
+        set_error("cl_getData (for AARE) failed: %d", ret);
+        return ret;
+    }
+
+    ret = cl_parseAAREResponse(&slot->settings, &slot->reply->data);
     if (ret != 0) {
         set_error("cl_parseAAREResponse failed: %d", ret);
     }
-    bb_clear(&bb);
     return ret;
 }
 
@@ -309,6 +348,9 @@ int dlms_client_get_data(int handle, const uint8_t* data, int len,
             set_error("malloc failed for reply data");
             return -1;
         }
+        reply_init(slot->reply);
+    } else if (slot->reply->complete) {
+        reply_clear(slot->reply);
         reply_init(slot->reply);
     }
 
@@ -957,6 +999,8 @@ void svr_getDataType(dlmsSettings* settings, gxValueEventCollection* args) {
 
 /* ===== Server lifecycle ===== */
 
+static gxAssociationLogicalName serverAssocLN[MAX_SERVERS];
+
 int dlms_server_create(void) {
     int handle = -1;
     for (int i = 0; i < MAX_SERVERS; i++) {
@@ -981,6 +1025,25 @@ int dlms_server_create(void) {
     slot->settings.base.serverAddress = 1;
     slot->settings.base.clientAddress = 16;
     slot->settings.base.authentication = DLMS_AUTHENTICATION_LOW;
+
+    memset(&serverAssocLN[handle], 0, sizeof(gxAssociationLogicalName));
+    const unsigned char assocLn[6] = { 0, 0, 40, 0, 0, 255 };
+    cosem_init2((gxObject*)&serverAssocLN[handle],
+                DLMS_OBJECT_TYPE_ASSOCIATION_LOGICAL_NAME, assocLn);
+    serverAssocLN[handle].authenticationMechanismName.mechanismId = DLMS_AUTHENTICATION_LOW;
+    serverAssocLN[handle].clientSAP = 16;
+    serverAssocLN[handle].xDLMSContextInfo.maxSendPduSize = 2048;
+    serverAssocLN[handle].xDLMSContextInfo.maxReceivePduSize = 2048;
+    serverAssocLN[handle].xDLMSContextInfo.conformance = (DLMS_CONFORMANCE)(
+        DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_ACTION |
+        DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_SET_OR_WRITE |
+        DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_GET_OR_READ |
+        DLMS_CONFORMANCE_SET |
+        DLMS_CONFORMANCE_SELECTIVE_ACCESS |
+        DLMS_CONFORMANCE_ACTION |
+        DLMS_CONFORMANCE_MULTIPLE_REFERENCES |
+        DLMS_CONFORMANCE_GET);
+    oa_push(&slot->settings.base.objects, (gxObject*)&serverAssocLN[handle]);
 
     servers[handle] = slot;
     return handle;
@@ -1031,13 +1094,16 @@ int dlms_server_handle_request(int handle, const uint8_t* data, int len,
         return -1;
     }
 
+    ServerSlot* slot = servers[handle];
+
     gxByteBuffer request, reply;
     bb_init(&request);
     bb_init(&reply);
     bb_set(&request, data, (uint32_t)len);
 
-    int ret = svr_handleRequest(&servers[handle]->settings, &request, &reply);
+    int ret = svr_handleRequest(&slot->settings, &request, &reply);
     bb_clear(&request);
+
     if (ret != 0) {
         set_error("svr_handleRequest failed: %d", ret);
         bb_clear(&reply);

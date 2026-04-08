@@ -15,8 +15,12 @@ export class DlmsClient {
     this._handle = handle;
   }
 
-  static async create(opts: ClientOptions): Promise<DlmsClient> {
-    const module = await loadGuruxModule();
+  getModule(): EmscriptenModule {
+    return this.module;
+  }
+
+  static async create(opts: ClientOptions, existingModule?: EmscriptenModule): Promise<DlmsClient> {
+    const module = existingModule ?? await loadGuruxModule();
     const handle = module.ccall(
       'dlms_client_create', 'number',
       ['number', 'number', 'string', 'number'],

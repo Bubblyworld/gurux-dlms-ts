@@ -15,8 +15,12 @@ export class DlmsServer {
     this.handle = handle;
   }
 
-  static async create(): Promise<DlmsServer> {
-    const module = await loadGuruxModule();
+  getModule(): EmscriptenModule {
+    return this.module;
+  }
+
+  static async create(existingModule?: EmscriptenModule): Promise<DlmsServer> {
+    const module = existingModule ?? await loadGuruxModule();
     const handle = module.ccall(
       'dlms_server_create', 'number', [], []
     ) as number;
