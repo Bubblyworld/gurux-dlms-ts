@@ -261,8 +261,14 @@ export class DlmsClient {
     const frames: Uint8Array[] = [];
     let offset = 0;
     while (offset < data.length) {
+      if (offset + 4 > data.length) {
+        throw new DlmsException({ kind: 'wasm', message: `truncated frame header at offset ${offset}: need 4 bytes, have ${data.length - offset}` });
+      }
       const len = (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
       offset += 4;
+      if (offset + len > data.length) {
+        throw new DlmsException({ kind: 'wasm', message: `truncated frame data at offset ${offset}: need ${len} bytes, have ${data.length - offset}` });
+      }
       frames.push(data.slice(offset, offset + len));
       offset += len;
     }
