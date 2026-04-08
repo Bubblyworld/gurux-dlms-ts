@@ -231,11 +231,12 @@ export class DlmsClient {
     const obisPtr = this.module._malloc(32);
     try {
       for (let i = 0; i < count; i++) {
-        this.module.ccall(
+        const objRet = this.module.ccall(
           'dlms_client_get_parsed_object', 'number',
           ['number', 'number', 'number', 'number', 'number'],
           [this._handle, i, typePtr, obisPtr, 32]
-        );
+        ) as number;
+        if (objRet !== 0) this.throwError();
         entries.push({
           type: this.module.getValue(typePtr, 'i32'),
           obis: this.module.UTF8ToString(obisPtr),

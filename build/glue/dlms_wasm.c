@@ -860,11 +860,21 @@ int dlms_client_parse_objects(int handle, const uint8_t* data, int len) {
     }
     ClientSlot* slot = clients[handle];
 
-    gxByteBuffer bb;
-    bb_init(&bb);
-    bb_set(&bb, data, (uint32_t)len);
-    int ret = cl_parseObjects(&slot->settings, &bb);
-    bb_clear(&bb);
+    int ret;
+    if (data && len > 0) {
+        gxByteBuffer bb;
+        bb_init(&bb);
+        bb_set(&bb, data, (uint32_t)len);
+        ret = cl_parseObjects(&slot->settings, &bb);
+        bb_clear(&bb);
+    } else if (slot->reply) {
+        slot->reply->data.position = 0;
+        ret = cl_parseObjects(&slot->settings, &slot->reply->data);
+    } else {
+        set_error("no data provided and no reply data available");
+        return -1;
+    }
+
     if (ret != 0) {
         set_error("cl_parseObjects failed: %d", ret);
         return ret;
