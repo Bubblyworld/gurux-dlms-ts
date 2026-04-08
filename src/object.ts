@@ -89,6 +89,9 @@ export class DlmsObject {
 
   setString(attribute: number, value: string): void {
     this.ensureNotFreed();
+    if (value.length > 65535) {
+      throw new DlmsException({ kind: 'wasm', message: `string length ${value.length} exceeds maximum of 65535` });
+    }
     this.module.ccall(
       'dlms_object_set_str', null,
       ['number', 'number', 'string'], [this._handle, attribute, value]
@@ -97,6 +100,9 @@ export class DlmsObject {
 
   setBytes(attribute: number, data: Uint8Array): void {
     this.ensureNotFreed();
+    if (data.length > 65535) {
+      throw new DlmsException({ kind: 'wasm', message: `data length ${data.length} exceeds maximum of 65535` });
+    }
     const ptr = this.module._malloc(data.length);
     try {
       this.module.HEAPU8.set(data, ptr);
