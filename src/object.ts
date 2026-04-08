@@ -49,7 +49,7 @@ export class DlmsObject {
 
   getBytes(attribute: number): Uint8Array {
     this.ensureNotFreed();
-    const bufSize = 4096;
+    const bufSize = 65536;
     const outPtr = this.module._malloc(bufSize);
     const lenPtr = this.module._malloc(4);
     this.module.setValue(lenPtr, bufSize, 'i32');

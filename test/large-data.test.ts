@@ -31,4 +31,17 @@ describe('large data handling', () => {
     expect(() => obj.setBytes(2, data)).not.toThrow();
     obj.free();
   });
+
+  it('can round-trip byte data larger than 4KB via getBytes', async () => {
+    module = await loadGuruxModule();
+    const obj = new DlmsObject(module, ObjectType.DATA, '0.0.42.0.0.255');
+    const data = new Uint8Array(8000);
+    for (let i = 0; i < data.length; i++) data[i] = i & 0xFF;
+    obj.setBytes(2, data);
+    const result = obj.getBytes(2);
+    expect(result.length).toBe(8000);
+    expect(result[0]).toBe(0);
+    expect(result[7999]).toBe(7999 & 0xFF);
+    obj.free();
+  });
 });
