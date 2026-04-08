@@ -3,7 +3,7 @@ import { DlmsObject } from './object.js';
 import type { EmscriptenModule, ClientOptions, GetDataResult, AssociationEntry } from './types.js';
 import { DlmsException, InterfaceType } from './types.js';
 
-const OUT_BUF_SIZE = 8192;
+const DEFAULT_OUT_BUF_SIZE = 8192;
 
 export class DlmsClient {
   private module: EmscriptenModule;
@@ -112,9 +112,9 @@ export class DlmsClient {
 
   receiverReady(type: number): Uint8Array[] {
     this.ensureNotFreed();
-    const outPtr = this.module._malloc(OUT_BUF_SIZE);
+    const outPtr = this.module._malloc(this.outBufSize);
     const lenPtr = this.module._malloc(4);
-    this.module.setValue(lenPtr, OUT_BUF_SIZE, 'i32');
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
     try {
       const ret = this.module.ccall(
         'dlms_client_receiver_ready', 'number',
@@ -141,9 +141,9 @@ export class DlmsClient {
 
   method(obj: DlmsObject, methodIndex: number, params?: Uint8Array): Uint8Array[] {
     this.ensureNotFreed();
-    const outPtr = this.module._malloc(OUT_BUF_SIZE);
+    const outPtr = this.module._malloc(this.outBufSize);
     const lenPtr = this.module._malloc(4);
-    this.module.setValue(lenPtr, OUT_BUF_SIZE, 'i32');
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
     let paramsPtr = 0;
     try {
       if (params && params.length > 0) {
@@ -184,9 +184,9 @@ export class DlmsClient {
 
   readByRange(obj: DlmsObject, start: Date, end: Date): Uint8Array[] {
     this.ensureNotFreed();
-    const outPtr = this.module._malloc(OUT_BUF_SIZE);
+    const outPtr = this.module._malloc(this.outBufSize);
     const lenPtr = this.module._malloc(4);
-    this.module.setValue(lenPtr, OUT_BUF_SIZE, 'i32');
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
     try {
       const ret = this.module.ccall(
         'dlms_client_read_by_range', 'number',
@@ -278,9 +278,9 @@ export class DlmsClient {
 
   private callFrameMethod(name: string): Uint8Array[] {
     this.ensureNotFreed();
-    const outPtr = this.module._malloc(OUT_BUF_SIZE);
+    const outPtr = this.module._malloc(this.outBufSize);
     const lenPtr = this.module._malloc(4);
-    this.module.setValue(lenPtr, OUT_BUF_SIZE, 'i32');
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
     try {
       const ret = this.module.ccall(
         name, 'number',
@@ -313,9 +313,9 @@ export class DlmsClient {
 
   private callObjectFrameMethod(name: string, obj: DlmsObject, attribute: number): Uint8Array[] {
     this.ensureNotFreed();
-    const outPtr = this.module._malloc(OUT_BUF_SIZE);
+    const outPtr = this.module._malloc(this.outBufSize);
     const lenPtr = this.module._malloc(4);
-    this.module.setValue(lenPtr, OUT_BUF_SIZE, 'i32');
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
     try {
       const ret = this.module.ccall(
         name, 'number',
@@ -330,6 +330,10 @@ export class DlmsClient {
       this.module._free(outPtr);
       this.module._free(lenPtr);
     }
+  }
+
+  private get outBufSize(): number {
+    return this.getInt('outBufSize') || DEFAULT_OUT_BUF_SIZE;
   }
 
   private throwError(): never {

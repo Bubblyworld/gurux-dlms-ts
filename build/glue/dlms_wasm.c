@@ -32,6 +32,7 @@ typedef struct {
     dlmsSettings settings;
     gxReplyData* reply;
     int parsedObjectsValid;
+    int outBufSize;
 } ClientSlot;
 
 typedef struct {
@@ -136,6 +137,7 @@ int dlms_client_create(int client_addr, int server_addr,
 
     slot->reply = NULL;
     slot->parsedObjectsValid = 0;
+    slot->outBufSize = 8192;
 
     clients[handle] = slot;
     return handle;
@@ -165,6 +167,7 @@ void dlms_client_set_int(int handle, const char* setting, int value) {
     else if (strcmp(setting, "serverAddress") == 0)    s->serverAddress = (uint32_t)value;
     else if (strcmp(setting, "authentication") == 0)   s->authentication = (DLMS_AUTHENTICATION)value;
     else if (strcmp(setting, "interfaceType") == 0)    s->interfaceType = (DLMS_INTERFACE_TYPE)value;
+    else if (strcmp(setting, "outBufSize") == 0)      clients[handle]->outBufSize = value;
 }
 
 void dlms_client_set_str(int handle, const char* setting, const char* value) {
@@ -188,6 +191,7 @@ int dlms_client_get_int(int handle, const char* setting) {
     if (strcmp(setting, "serverAddress") == 0)         return (int)s->serverAddress;
     if (strcmp(setting, "authentication") == 0)        return (int)s->authentication;
     if (strcmp(setting, "interfaceType") == 0)         return (int)s->interfaceType;
+    if (strcmp(setting, "outBufSize") == 0)           return clients[handle]->outBufSize;
     return 0;
 }
 
