@@ -580,6 +580,12 @@ int dlms_object_get_int(int obj_handle, int attribute) {
             return ((int)r->scaler << 8) | r->unit;
         }
         break;
+    case DLMS_OBJECT_TYPE_CLOCK:
+        if (attribute == 3)
+            return (int)((gxClock*)obj)->status;
+        if (attribute == 4)
+            return ((gxClock*)obj)->timeZone;
+        break;
     case DLMS_OBJECT_TYPE_DISCONNECT_CONTROL:
         if (attribute == 2)
             return ((gxDisconnectControl*)obj)->outputState;
@@ -624,6 +630,14 @@ const char* dlms_object_get_str(int obj_handle, int attribute) {
     if (attribute == 1) {
         hlp_getLogicalNameToString(obj->logicalName, str_buf);
         return str_buf;
+    }
+
+    if (obj->objectType == DLMS_OBJECT_TYPE_CLOCK) {
+        gxClock* clk = (gxClock*)obj;
+        if (attribute == 2) {
+            time_toString2(&clk->time, str_buf, sizeof(str_buf));
+            return str_buf;
+        }
     }
 
     dlmsVARIANT* val = NULL;
