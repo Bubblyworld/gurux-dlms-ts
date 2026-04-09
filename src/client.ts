@@ -1,7 +1,7 @@
 import { loadGuruxModule } from './module.js';
 import { DlmsObject } from './object.js';
 import type { EmscriptenModule, ClientOptions, GetDataResult, AssociationEntry } from './types.js';
-import { DlmsException, InterfaceType, DLMS_ERROR_MESSAGES } from './types.js';
+import { DlmsException, InterfaceType, DLMS_ERROR_MESSAGES, ACSE_ERROR_RANGE } from './types.js';
 
 const DEFAULT_OUT_BUF_SIZE = 8192;
 
@@ -76,6 +76,14 @@ export class DlmsClient {
 
   parseAareResponse(data: Uint8Array): void {
     this.callParseMethod('dlms_client_parse_aare', data);
+  }
+
+  applicationAssociationRequest(): Uint8Array[] {
+    return this.callFrameMethod('dlms_client_get_application_association_request');
+  }
+
+  parseApplicationAssociationResponse(data: Uint8Array): void {
+    this.callParseMethod('dlms_client_parse_application_association_response', data);
   }
 
   releaseRequest(): Uint8Array[] {
@@ -348,6 +356,13 @@ export class DlmsClient {
       const detail = dlmsMatch[2];
       const humanMessage = DLMS_ERROR_MESSAGES[errorCode];
       if (humanMessage) {
+        if (errorCode >= ACSE_ERROR_RANGE.min && errorCode <= ACSE_ERROR_RANGE.max) {
+          throw new DlmsException({
+            kind: 'acse',
+            diagnostic: errorCode - ACSE_ERROR_RANGE.min,
+            message: `${humanMessage} (${detail})`,
+          });
+        }
         throw new DlmsException({
           kind: 'cosem',
           errorCode,

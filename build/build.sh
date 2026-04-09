@@ -67,6 +67,8 @@ _dlms_client_create,_dlms_client_destroy,\
 _dlms_client_set_int,_dlms_client_set_str,_dlms_client_get_int,\
 _dlms_client_snrm_request,_dlms_client_parse_ua,\
 _dlms_client_aarq_request,_dlms_client_parse_aare,\
+_dlms_client_get_application_association_request,\
+_dlms_client_parse_application_association_response,\
 _dlms_client_release_request,_dlms_client_disconnect_request,\
 _dlms_client_get_data,_dlms_client_receiver_ready,\
 _dlms_object_create,_dlms_object_destroy,\

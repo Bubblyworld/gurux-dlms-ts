@@ -18,6 +18,7 @@
 #include "objectarray.h"
 #include "helpers.h"
 #include "date.h"
+#include "ciphering.h"
 
 /* Gurux declares time_elapsed as extern for platform-specific implementation. */
 uint32_t time_elapsed(void) {
@@ -75,6 +76,19 @@ static int write_messages_to_buf(message* msgs, uint8_t* out, int* out_len) {
         offset += 4 + (int)frame_len;
     }
     *out_len = offset;
+    return 0;
+}
+
+static int hex_decode(const char* hex, gxByteBuffer* out) {
+    bb_clear(out);
+    int len = (int)strlen(hex);
+    for (int i = 0; i < len; i += 2) {
+        while (hex[i] == ' ' || hex[i] == ':') { i++; len = (int)strlen(hex); }
+        if (i + 1 >= len) break;
+        unsigned int byte;
+        if (sscanf(hex + i, "%2x", &byte) != 1) return -1;
+        bb_setUInt8(out, (unsigned char)byte);
+    }
     return 0;
 }
 
@@ -169,6 +183,7 @@ void dlms_client_set_int(int handle, const char* setting, int value) {
     else if (strcmp(setting, "authentication") == 0)   s->authentication = (DLMS_AUTHENTICATION)value;
     else if (strcmp(setting, "interfaceType") == 0)    s->interfaceType = (DLMS_INTERFACE_TYPE)value;
     else if (strcmp(setting, "outBufSize") == 0)      clients[handle]->outBufSize = value;
+    else if (strcmp(setting, "security") == 0)        s->cipher.security = (DLMS_SECURITY)value;
 }
 
 void dlms_client_set_str(int handle, const char* setting, const char* value) {
@@ -177,6 +192,15 @@ void dlms_client_set_str(int handle, const char* setting, const char* value) {
     if (strcmp(setting, "password") == 0 && value) {
         bb_clear(&s->password);
         bb_set(&s->password, (const unsigned char*)value, (uint32_t)strlen(value));
+    } else if (strcmp(setting, "passwordHex") == 0 && value) {
+        bb_clear(&s->password);
+        hex_decode(value, &s->password);
+    } else if (strcmp(setting, "blockCipherKey") == 0 && value) {
+        hex_decode(value, &s->cipher.blockCipherKey);
+    } else if (strcmp(setting, "authenticationKey") == 0 && value) {
+        hex_decode(value, &s->cipher.authenticationKey);
+    } else if (strcmp(setting, "systemTitle") == 0 && value) {
+        hex_decode(value, &s->cipher.systemTitle);
     }
 }
 
@@ -300,6 +324,50 @@ int dlms_client_parse_aare(int handle, const uint8_t* data, int len) {
     ret = cl_parseAAREResponse(&slot->settings, &slot->reply->data);
     if (ret != 0) {
         set_error("DLMS:%d:cl_parseAAREResponse failed", ret);
+    }
+    return ret;
+}
+
+int dlms_client_get_application_association_request(int handle,
+                                                    uint8_t* out, int* out_len) {
+    if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
+        set_error("invalid client handle %d", handle);
+        return -1;
+    }
+    message msgs;
+    mes_init(&msgs);
+    int ret = cl_getApplicationAssociationRequest(&clients[handle]->settings, &msgs);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_getApplicationAssociationRequest failed", ret);
+        mes_clear(&msgs);
+        return ret;
+    }
+    int rc = write_messages_to_buf(&msgs, out, out_len);
+    mes_clear(&msgs);
+    return rc;
+}
+
+int dlms_client_parse_application_association_response(int handle,
+                                                        const uint8_t* data, int len) {
+    if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
+        set_error("invalid client handle %d", handle);
+        return -1;
+    }
+    ClientSlot* slot = clients[handle];
+
+    gxByteBuffer bb;
+    bb_init(&bb);
+    bb_set(&bb, data, (uint32_t)len);
+    int ret = cl_getData(&slot->settings, &bb, slot->reply);
+    bb_clear(&bb);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_getData (for HLS) failed", ret);
+        return ret;
+    }
+
+    ret = cl_parseApplicationAssociationResponse(&slot->settings, &slot->reply->data);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_parseApplicationAssociationResponse failed", ret);
     }
     return ret;
 }

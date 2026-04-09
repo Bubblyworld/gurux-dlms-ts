@@ -71,6 +71,7 @@ export interface ClientOptions {
 }
 
 export enum DlmsErrorCode {
+  /** Data access errors (COSEM layer, codes 1-250) */
   HARDWARE_FAULT = 1,
   TEMPORARY_FAILURE = 2,
   READ_WRITE_DENIED = 3,
@@ -86,6 +87,16 @@ export enum DlmsErrorCode {
   NO_LONG_SET_OR_WRITE_IN_PROGRESS = 18,
   DATA_BLOCK_NUMBER_INVALID = 19,
   OTHER_REASON = 250,
+
+  /** Association/authentication errors (ACSE layer, codes 273-280) */
+  REJECTED_PERMANENT = 273,
+  REJECTED_TRANSIENT = 274,
+  NO_REASON_GIVEN = 275,
+  APPLICATION_CONTEXT_NAME_NOT_SUPPORTED = 276,
+  AUTHENTICATION_MECHANISM_NAME_NOT_RECOGNISED = 277,
+  AUTHENTICATION_MECHANISM_NAME_REQUIRED = 278,
+  AUTHENTICATION_FAILURE = 279,
+  AUTHENTICATION_REQUIRED = 280,
 }
 
 export const DLMS_ERROR_MESSAGES: Record<number, string> = {
@@ -104,7 +115,17 @@ export const DLMS_ERROR_MESSAGES: Record<number, string> = {
   [DlmsErrorCode.NO_LONG_SET_OR_WRITE_IN_PROGRESS]: 'No long set or write in progress',
   [DlmsErrorCode.DATA_BLOCK_NUMBER_INVALID]: 'Data block number invalid',
   [DlmsErrorCode.OTHER_REASON]: 'Other reason',
+  [DlmsErrorCode.REJECTED_PERMANENT]: 'Association permanently rejected',
+  [DlmsErrorCode.REJECTED_TRANSIENT]: 'Association transiently rejected',
+  [DlmsErrorCode.NO_REASON_GIVEN]: 'Association rejected (no reason given)',
+  [DlmsErrorCode.APPLICATION_CONTEXT_NAME_NOT_SUPPORTED]: 'Application context name not supported',
+  [DlmsErrorCode.AUTHENTICATION_MECHANISM_NAME_NOT_RECOGNISED]: 'Authentication mechanism not recognised',
+  [DlmsErrorCode.AUTHENTICATION_MECHANISM_NAME_REQUIRED]: 'Authentication mechanism required',
+  [DlmsErrorCode.AUTHENTICATION_FAILURE]: 'Authentication failure',
+  [DlmsErrorCode.AUTHENTICATION_REQUIRED]: 'Authentication required',
 };
+
+export const ACSE_ERROR_RANGE = { min: 273, max: 280 };
 
 export type DlmsError =
   | { kind: 'hdlc'; message: string }

@@ -16,6 +16,10 @@ int dlms_client_snrm_request(int handle, uint8_t* out, int* out_len);
 int dlms_client_parse_ua(int handle, const uint8_t* data, int len);
 int dlms_client_aarq_request(int handle, uint8_t* out, int* out_len);
 int dlms_client_parse_aare(int handle, const uint8_t* data, int len);
+int dlms_client_get_application_association_request(int handle,
+                                                    uint8_t* out, int* out_len);
+int dlms_client_parse_application_association_response(int handle,
+                                                        const uint8_t* data, int len);
 int dlms_client_release_request(int handle, uint8_t* out, int* out_len);
 int dlms_client_disconnect_request(int handle, uint8_t* out, int* out_len);
 
