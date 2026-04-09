@@ -1,7 +1,7 @@
 import { loadGuruxModule } from './module.js';
 import { DlmsObject } from './object.js';
 import type { EmscriptenModule, ClientOptions, GetDataResult, AssociationEntry } from './types.js';
-import { DlmsException, InterfaceType } from './types.js';
+import { DlmsException, InterfaceType, DLMS_ERROR_MESSAGES } from './types.js';
 
 const DEFAULT_OUT_BUF_SIZE = 8192;
 
@@ -338,7 +338,26 @@ export class DlmsClient {
 
   private throwError(): never {
     const err = this.module.ccall('dlms_last_error', 'string', [], []) as string;
-    throw new DlmsException({ kind: 'wasm', message: err || 'unknown WASM error' });
+    if (!err) {
+      throw new DlmsException({ kind: 'wasm', message: 'unknown WASM error' });
+    }
+
+    const dlmsMatch = err.match(/^DLMS:(-?\d+):(.+)$/);
+    if (dlmsMatch) {
+      const errorCode = parseInt(dlmsMatch[1], 10);
+      const detail = dlmsMatch[2];
+      const humanMessage = DLMS_ERROR_MESSAGES[errorCode];
+      if (humanMessage) {
+        throw new DlmsException({
+          kind: 'cosem',
+          errorCode,
+          message: `${humanMessage} (${detail})`,
+        });
+      }
+      throw new DlmsException({ kind: 'wasm', message: `${detail} (error code: ${errorCode})` });
+    }
+
+    throw new DlmsException({ kind: 'wasm', message: err });
   }
 
   private ensureNotFreed(): void {

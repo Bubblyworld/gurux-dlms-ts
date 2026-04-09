@@ -1,3 +1,4 @@
+import { normalizeObis } from './obis.js';
 import type { EmscriptenModule } from './types.js';
 import { DlmsException } from './types.js';
 
@@ -8,9 +9,10 @@ export class DlmsObject {
 
   constructor(module: EmscriptenModule, objectType: number, obis: string) {
     this.module = module;
+    const normalized = normalizeObis(obis);
     this._handle = module.ccall(
       'dlms_object_create', 'number',
-      ['number', 'string'], [objectType, obis]
+      ['number', 'string'], [objectType, normalized]
     ) as number;
     if (this._handle < 0) {
       const err = module.ccall('dlms_last_error', 'string', [], []) as string;

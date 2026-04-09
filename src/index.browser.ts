@@ -2,10 +2,12 @@ export { DlmsClient } from './client.js';
 export { DlmsServer } from './server.js';
 export { DlmsObject } from './object.js';
 export { loadGuruxModule } from './module.js';
+export { normalizeObis } from './obis.js';
 export {
   ObjectType,
   InterfaceType,
   Unit,
+  DlmsErrorCode,
   DlmsException,
 } from './types.js';
 export type {
@@ -23,3 +25,4 @@ export {
   DisconnectControl,
   ProfileGeneric,
 } from './helpers/index.js';
+export type { CaptureColumn } from './helpers/index.js';

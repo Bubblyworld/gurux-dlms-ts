@@ -58,6 +58,16 @@ int dlms_client_get_parsed_object_count(int handle);
 int dlms_client_get_parsed_object(int handle, int index,
                                   int* object_type, char* obis, int obis_len);
 
+int dlms_pg_row_count(int obj_handle);
+int dlms_pg_column_count(int obj_handle);
+int dlms_pg_capture_object(int obj_handle, int col,
+                           int* object_type, char* obis, int obis_len,
+                           int* attr_index);
+int dlms_pg_cell_type(int obj_handle, int row, int col);
+double dlms_pg_cell_double(int obj_handle, int row, int col);
+int dlms_pg_cell_string(int obj_handle, int row, int col,
+                        char* buf, int buf_len);
+
 int  dlms_server_create(void);
 void dlms_server_destroy(int handle);
 int  dlms_server_add_object(int handle, int obj_handle);

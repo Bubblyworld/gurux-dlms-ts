@@ -70,6 +70,42 @@ export interface ClientOptions {
   interfaceType?: InterfaceType;
 }
 
+export enum DlmsErrorCode {
+  HARDWARE_FAULT = 1,
+  TEMPORARY_FAILURE = 2,
+  READ_WRITE_DENIED = 3,
+  UNDEFINED_OBJECT = 4,
+  INCONSISTENT_CLASS_OR_OBJECT = 9,
+  UNAVAILABLE_OBJECT = 11,
+  UNMATCH_TYPE = 12,
+  ACCESS_VIOLATED = 13,
+  DATA_BLOCK_UNAVAILABLE = 14,
+  LONG_GET_OR_READ_ABORTED = 15,
+  NO_LONG_GET_OR_READ_IN_PROGRESS = 16,
+  LONG_SET_OR_WRITE_ABORTED = 17,
+  NO_LONG_SET_OR_WRITE_IN_PROGRESS = 18,
+  DATA_BLOCK_NUMBER_INVALID = 19,
+  OTHER_REASON = 250,
+}
+
+export const DLMS_ERROR_MESSAGES: Record<number, string> = {
+  [DlmsErrorCode.HARDWARE_FAULT]: 'Hardware fault',
+  [DlmsErrorCode.TEMPORARY_FAILURE]: 'Temporary failure',
+  [DlmsErrorCode.READ_WRITE_DENIED]: 'Read/write denied',
+  [DlmsErrorCode.UNDEFINED_OBJECT]: 'Undefined object',
+  [DlmsErrorCode.INCONSISTENT_CLASS_OR_OBJECT]: 'Inconsistent class or object',
+  [DlmsErrorCode.UNAVAILABLE_OBJECT]: 'Unavailable object',
+  [DlmsErrorCode.UNMATCH_TYPE]: 'Unmatched type',
+  [DlmsErrorCode.ACCESS_VIOLATED]: 'Access violated',
+  [DlmsErrorCode.DATA_BLOCK_UNAVAILABLE]: 'Data block unavailable',
+  [DlmsErrorCode.LONG_GET_OR_READ_ABORTED]: 'Long get or read aborted',
+  [DlmsErrorCode.NO_LONG_GET_OR_READ_IN_PROGRESS]: 'No long get or read in progress',
+  [DlmsErrorCode.LONG_SET_OR_WRITE_ABORTED]: 'Long set or write aborted',
+  [DlmsErrorCode.NO_LONG_SET_OR_WRITE_IN_PROGRESS]: 'No long set or write in progress',
+  [DlmsErrorCode.DATA_BLOCK_NUMBER_INVALID]: 'Data block number invalid',
+  [DlmsErrorCode.OTHER_REASON]: 'Other reason',
+};
+
 export type DlmsError =
   | { kind: 'hdlc'; message: string }
   | { kind: 'acse'; diagnostic: number; message: string }

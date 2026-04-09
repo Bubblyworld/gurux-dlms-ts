@@ -75,6 +75,8 @@ _dlms_client_update_value,\
 _dlms_object_get_int,_dlms_object_get_double,_dlms_object_get_str,_dlms_object_get_bytes,\
 _dlms_object_set_int,_dlms_object_set_double,_dlms_object_set_str,_dlms_object_set_bytes,\
 _dlms_client_read_by_range,\
+_dlms_pg_row_count,_dlms_pg_column_count,_dlms_pg_capture_object,\
+_dlms_pg_cell_type,_dlms_pg_cell_double,_dlms_pg_cell_string,\
 _dlms_client_get_objects_request,_dlms_client_parse_objects,\
 _dlms_client_get_parsed_object_count,_dlms_client_get_parsed_object,\
 _dlms_server_create,_dlms_server_destroy,\

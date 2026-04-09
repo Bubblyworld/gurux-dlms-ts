@@ -205,7 +205,7 @@ int dlms_client_snrm_request(int handle, uint8_t* out, int* out_len) {
     mes_init(&msgs);
     int ret = cl_snrmRequest(&clients[handle]->settings, &msgs);
     if (ret != 0) {
-        set_error("cl_snrmRequest failed: %d", ret);
+        set_error("DLMS:%d:cl_snrmRequest failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -239,13 +239,13 @@ int dlms_client_parse_ua(int handle, const uint8_t* data, int len) {
     int ret = cl_getData(&slot->settings, &bb, slot->reply);
     bb_clear(&bb);
     if (ret != 0) {
-        set_error("cl_getData (for UA) failed: %d", ret);
+        set_error("DLMS:%d:cl_getData (for UA) failed", ret);
         return ret;
     }
 
     ret = cl_parseUAResponse(&slot->settings, &slot->reply->data);
     if (ret != 0) {
-        set_error("cl_parseUAResponse failed: %d", ret);
+        set_error("DLMS:%d:cl_parseUAResponse failed", ret);
     }
     return ret;
 }
@@ -259,7 +259,7 @@ int dlms_client_aarq_request(int handle, uint8_t* out, int* out_len) {
     mes_init(&msgs);
     int ret = cl_aarqRequest(&clients[handle]->settings, &msgs);
     if (ret != 0) {
-        set_error("cl_aarqRequest failed: %d", ret);
+        set_error("DLMS:%d:cl_aarqRequest failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -293,13 +293,13 @@ int dlms_client_parse_aare(int handle, const uint8_t* data, int len) {
     int ret = cl_getData(&slot->settings, &bb, slot->reply);
     bb_clear(&bb);
     if (ret != 0) {
-        set_error("cl_getData (for AARE) failed: %d", ret);
+        set_error("DLMS:%d:cl_getData (for AARE) failed", ret);
         return ret;
     }
 
     ret = cl_parseAAREResponse(&slot->settings, &slot->reply->data);
     if (ret != 0) {
-        set_error("cl_parseAAREResponse failed: %d", ret);
+        set_error("DLMS:%d:cl_parseAAREResponse failed", ret);
     }
     return ret;
 }
@@ -313,7 +313,7 @@ int dlms_client_release_request(int handle, uint8_t* out, int* out_len) {
     mes_init(&msgs);
     int ret = cl_releaseRequest(&clients[handle]->settings, &msgs);
     if (ret != 0) {
-        set_error("cl_releaseRequest failed: %d", ret);
+        set_error("DLMS:%d:cl_releaseRequest failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -331,7 +331,7 @@ int dlms_client_disconnect_request(int handle, uint8_t* out, int* out_len) {
     mes_init(&msgs);
     int ret = cl_disconnectRequest(&clients[handle]->settings, &msgs);
     if (ret != 0) {
-        set_error("cl_disconnectRequest failed: %d", ret);
+        set_error("DLMS:%d:cl_disconnectRequest failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -354,7 +354,7 @@ int dlms_client_get_data(int handle, const uint8_t* data, int len,
             return -1;
         }
         reply_init(slot->reply);
-    } else if (slot->reply->complete) {
+    } else if (slot->reply->complete && slot->reply->moreData == DLMS_DATA_REQUEST_TYPES_NONE) {
         reply_clear(slot->reply);
         reply_init(slot->reply);
     }
@@ -365,7 +365,7 @@ int dlms_client_get_data(int handle, const uint8_t* data, int len,
     int ret = cl_getData(&slot->settings, &bb, slot->reply);
     bb_clear(&bb);
     if (ret != 0) {
-        set_error("cl_getData failed: %d", ret);
+        set_error("DLMS:%d:cl_getData failed", ret);
         return ret;
     }
     *is_complete = slot->reply->complete;
@@ -384,18 +384,22 @@ int dlms_client_receiver_ready(int handle, int type,
     int ret = cl_receiverReady(&clients[handle]->settings,
                                (DLMS_DATA_REQUEST_TYPES)type, &bb);
     if (ret != 0) {
-        set_error("cl_receiverReady failed: %d", ret);
+        set_error("DLMS:%d:cl_receiverReady failed", ret);
         bb_clear(&bb);
         return ret;
     }
     int avail = (int)(bb.size - bb.position);
-    if (avail > *out_len) {
-        set_error("output buffer too small: need %d, have %d", avail, *out_len);
+    if (4 + avail > *out_len) {
+        set_error("output buffer too small: need %d, have %d", 4 + avail, *out_len);
         bb_clear(&bb);
         return -1;
     }
-    memcpy(out, bb.data + bb.position, avail);
-    *out_len = avail;
+    out[0] = (uint8_t)(avail >> 24);
+    out[1] = (uint8_t)(avail >> 16);
+    out[2] = (uint8_t)(avail >> 8);
+    out[3] = (uint8_t)(avail);
+    memcpy(out + 4, bb.data + bb.position, avail);
+    *out_len = 4 + avail;
     bb_clear(&bb);
     return 0;
 }
@@ -413,7 +417,7 @@ int dlms_object_create(int object_type, const char* obis) {
     gxObject* obj = NULL;
     int ret = cosem_createObject2((DLMS_OBJECT_TYPE)object_type, obis, &obj);
     if (ret != 0 || !obj) {
-        set_error("cosem_createObject2 failed: %d", ret);
+        set_error("DLMS:%d:cosem_createObject2 failed", ret);
         return -1;
     }
 
@@ -443,7 +447,7 @@ int dlms_client_read(int handle, int obj_handle, int attribute,
     int ret = cl_read(&clients[handle]->settings, objects[obj_handle],
                       (unsigned char)attribute, &msgs);
     if (ret != 0) {
-        set_error("cl_read failed: %d", ret);
+        set_error("DLMS:%d:cl_read failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -467,7 +471,7 @@ int dlms_client_write(int handle, int obj_handle, int attribute,
     int ret = cl_write(&clients[handle]->settings, objects[obj_handle],
                        (unsigned char)attribute, &msgs);
     if (ret != 0) {
-        set_error("cl_write failed: %d", ret);
+        set_error("DLMS:%d:cl_write failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -506,7 +510,7 @@ int dlms_client_method(int handle, int obj_handle, int method_index,
     }
 
     if (ret != 0) {
-        set_error("cl_method failed: %d", ret);
+        set_error("DLMS:%d:cl_method failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -544,7 +548,7 @@ int dlms_client_update_value(int handle, int obj_handle, int attribute,
                              (unsigned char)attribute, &val);
     var_clear(&val);
     if (ret != 0) {
-        set_error("cl_updateValue failed: %d", ret);
+        set_error("DLMS:%d:cl_updateValue failed", ret);
         return ret;
     }
 
@@ -845,13 +849,142 @@ int dlms_client_read_by_range(int handle, int obj_handle,
     int ret = cl_readRowsByRange(&clients[handle]->settings, pg,
                                  &start_tm, &end_tm, &msgs);
     if (ret != 0) {
-        set_error("cl_readRowsByRange failed: %d", ret);
+        set_error("DLMS:%d:cl_readRowsByRange failed", ret);
         mes_clear(&msgs);
         return ret;
     }
     int rc = write_messages_to_buf(&msgs, out, out_len);
     mes_clear(&msgs);
     return rc;
+}
+
+/* ===== Profile Generic buffer access ===== */
+
+int dlms_pg_row_count(int obj_handle) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return 0;
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) return 0;
+    return (int)((gxProfileGeneric*)objects[obj_handle])->buffer.size;
+}
+
+int dlms_pg_column_count(int obj_handle) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return 0;
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) return 0;
+    return (int)((gxProfileGeneric*)objects[obj_handle])->captureObjects.size;
+}
+
+int dlms_pg_capture_object(int obj_handle, int col,
+                           int* object_type, char* obis, int obis_len,
+                           int* attr_index) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) {
+        set_error("invalid object handle %d", obj_handle);
+        return -1;
+    }
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
+        set_error("object is not a profile generic");
+        return -1;
+    }
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+    if (col < 0 || col >= (int)pg->captureObjects.size) {
+        set_error("column %d out of range (0..%d)", col, (int)pg->captureObjects.size - 1);
+        return -1;
+    }
+
+    gxKey* key = NULL;
+    int ret = arr_getByIndex(&pg->captureObjects, (uint16_t)col, (void**)&key);
+    if (ret != 0 || !key || !key->key) {
+        set_error("DLMS:%d:arr_getByIndex failed for capture object", ret);
+        return -1;
+    }
+
+    gxObject* obj = (gxObject*)key->key;
+    gxTarget* target = (gxTarget*)key->value;
+    *object_type = obj->objectType;
+    *attr_index = target ? target->attributeIndex : 0;
+    if (obis_len >= 20) {
+        hlp_getLogicalNameToString(obj->logicalName, obis);
+    }
+    return 0;
+}
+
+int dlms_pg_cell_type(int obj_handle, int row, int col) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return -1;
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) return -1;
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+    if (row < 0 || row >= (int)pg->buffer.size) return -1;
+
+    variantArray* va = NULL;
+    arr_getByIndex(&pg->buffer, (uint16_t)row, (void**)&va);
+    if (!va || col < 0 || col >= (int)va->size) return -1;
+
+    dlmsVARIANT* cell = NULL;
+    va_getByIndex(va, col, &cell);
+    if (!cell) return -1;
+    return (int)cell->vt;
+}
+
+double dlms_pg_cell_double(int obj_handle, int row, int col) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return 0.0;
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) return 0.0;
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+    if (row < 0 || row >= (int)pg->buffer.size) return 0.0;
+
+    variantArray* va = NULL;
+    arr_getByIndex(&pg->buffer, (uint16_t)row, (void**)&va);
+    if (!va || col < 0 || col >= (int)va->size) return 0.0;
+
+    dlmsVARIANT* cell = NULL;
+    va_getByIndex(va, col, &cell);
+    if (!cell) return 0.0;
+    return var_toDouble(cell);
+}
+
+int dlms_pg_cell_string(int obj_handle, int row, int col,
+                        char* buf, int buf_len) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) {
+        set_error("invalid object handle %d", obj_handle);
+        return -1;
+    }
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
+        set_error("object is not a profile generic");
+        return -1;
+    }
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+    if (row < 0 || row >= (int)pg->buffer.size) {
+        set_error("row %d out of range (0..%d)", row, (int)pg->buffer.size - 1);
+        return -1;
+    }
+
+    variantArray* va = NULL;
+    arr_getByIndex(&pg->buffer, (uint16_t)row, (void**)&va);
+    if (!va || col < 0 || col >= (int)va->size) {
+        set_error("column %d out of range", col);
+        return -1;
+    }
+
+    dlmsVARIANT* cell = NULL;
+    va_getByIndex(va, col, &cell);
+    if (!cell) {
+        buf[0] = '\0';
+        return 0;
+    }
+
+    if (cell->vt == DLMS_DATA_TYPE_DATETIME ||
+        cell->vt == DLMS_DATA_TYPE_DATE ||
+        cell->vt == DLMS_DATA_TYPE_TIME) {
+        if (cell->dateTime) {
+            time_toString2(cell->dateTime, buf, buf_len);
+        } else {
+            buf[0] = '\0';
+        }
+    } else if (cell->vt == DLMS_DATA_TYPE_OCTET_STRING && cell->byteArr) {
+        int sz = cell->byteArr->size;
+        if (sz > buf_len - 1) sz = buf_len - 1;
+        memcpy(buf, cell->byteArr->data, sz);
+        buf[sz] = '\0';
+    } else {
+        snprintf(buf, buf_len, "%f", var_toDouble(cell));
+    }
+    return 0;
 }
 
 int dlms_client_get_objects_request(int handle, uint8_t* out, int* out_len) {
@@ -863,7 +996,7 @@ int dlms_client_get_objects_request(int handle, uint8_t* out, int* out_len) {
     mes_init(&msgs);
     int ret = cl_getObjectsRequest(&clients[handle]->settings, &msgs);
     if (ret != 0) {
-        set_error("cl_getObjectsRequest failed: %d", ret);
+        set_error("DLMS:%d:cl_getObjectsRequest failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -895,7 +1028,7 @@ int dlms_client_parse_objects(int handle, const uint8_t* data, int len) {
     }
 
     if (ret != 0) {
-        set_error("cl_parseObjects failed: %d", ret);
+        set_error("DLMS:%d:cl_parseObjects failed", ret);
         return ret;
     }
     slot->parsedObjectsValid = 1;
@@ -922,7 +1055,7 @@ int dlms_client_get_parsed_object(int handle, int index,
     gxObject* obj = NULL;
     int ret = oa_getByIndex(oa, (uint16_t)index, &obj);
     if (ret != 0 || !obj) {
-        set_error("oa_getByIndex failed: %d", ret);
+        set_error("DLMS:%d:oa_getByIndex failed", ret);
         return -1;
     }
 
@@ -1096,7 +1229,7 @@ int dlms_server_add_object(int handle, int obj_handle) {
 
     int ret = oa_push(&servers[handle]->settings.base.objects, objects[obj_handle]);
     if (ret != 0) {
-        set_error("oa_push failed: %d", ret);
+        set_error("DLMS:%d:oa_push failed", ret);
         return ret;
     }
     return 0;
@@ -1109,7 +1242,7 @@ int dlms_server_initialize(int handle) {
     }
     int ret = svr_initialize(&servers[handle]->settings);
     if (ret != 0) {
-        set_error("svr_initialize failed: %d", ret);
+        set_error("DLMS:%d:svr_initialize failed", ret);
         return ret;
     }
     return 0;
@@ -1133,7 +1266,7 @@ int dlms_server_handle_request(int handle, const uint8_t* data, int len,
     bb_clear(&request);
 
     if (ret != 0) {
-        set_error("svr_handleRequest failed: %d", ret);
+        set_error("DLMS:%d:svr_handleRequest failed", ret);
         bb_clear(&reply);
         return ret;
     }

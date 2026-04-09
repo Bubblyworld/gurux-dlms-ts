@@ -3,3 +3,4 @@ export { ExtendedRegister } from './extended-register.js';
 export { Clock } from './clock.js';
 export { DisconnectControl } from './disconnect-control.js';
 export { ProfileGeneric } from './profile-generic.js';
+export type { CaptureColumn } from './profile-generic.js';
