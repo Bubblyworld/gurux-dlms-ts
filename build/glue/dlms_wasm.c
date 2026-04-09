@@ -39,6 +39,7 @@ typedef struct {
     dlmsServerSettings settings;
     unsigned char frameBuffer[512];
     unsigned char pduBuffer[2048];
+    gxAssociationLogicalName assocLN;
 } ServerSlot;
 
 static ClientSlot* clients[MAX_CLIENTS];
@@ -1014,8 +1015,6 @@ void svr_getDataType(dlmsSettings* settings, gxValueEventCollection* args) {
 
 /* ===== Server lifecycle ===== */
 
-static gxAssociationLogicalName serverAssocLN[MAX_SERVERS];
-
 int dlms_server_create(void) {
     int handle = -1;
     for (int i = 0; i < MAX_SERVERS; i++) {
@@ -1041,15 +1040,15 @@ int dlms_server_create(void) {
     slot->settings.base.clientAddress = 16;
     slot->settings.base.authentication = DLMS_AUTHENTICATION_LOW;
 
-    memset(&serverAssocLN[handle], 0, sizeof(gxAssociationLogicalName));
+    memset(&slot->assocLN, 0, sizeof(gxAssociationLogicalName));
     const unsigned char assocLn[6] = { 0, 0, 40, 0, 0, 255 };
-    cosem_init2((gxObject*)&serverAssocLN[handle],
+    cosem_init2((gxObject*)&slot->assocLN,
                 DLMS_OBJECT_TYPE_ASSOCIATION_LOGICAL_NAME, assocLn);
-    serverAssocLN[handle].authenticationMechanismName.mechanismId = DLMS_AUTHENTICATION_LOW;
-    serverAssocLN[handle].clientSAP = 16;
-    serverAssocLN[handle].xDLMSContextInfo.maxSendPduSize = 2048;
-    serverAssocLN[handle].xDLMSContextInfo.maxReceivePduSize = 2048;
-    serverAssocLN[handle].xDLMSContextInfo.conformance = (DLMS_CONFORMANCE)(
+    slot->assocLN.authenticationMechanismName.mechanismId = DLMS_AUTHENTICATION_LOW;
+    slot->assocLN.clientSAP = 16;
+    slot->assocLN.xDLMSContextInfo.maxSendPduSize = 2048;
+    slot->assocLN.xDLMSContextInfo.maxReceivePduSize = 2048;
+    slot->assocLN.xDLMSContextInfo.conformance = (DLMS_CONFORMANCE)(
         DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_ACTION |
         DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_SET_OR_WRITE |
         DLMS_CONFORMANCE_BLOCK_TRANSFER_WITH_GET_OR_READ |
@@ -1058,7 +1057,7 @@ int dlms_server_create(void) {
         DLMS_CONFORMANCE_ACTION |
         DLMS_CONFORMANCE_MULTIPLE_REFERENCES |
         DLMS_CONFORMANCE_GET);
-    oa_push(&slot->settings.base.objects, (gxObject*)&serverAssocLN[handle]);
+    oa_push(&slot->settings.base.objects, (gxObject*)&slot->assocLN);
 
     servers[handle] = slot;
     return handle;
