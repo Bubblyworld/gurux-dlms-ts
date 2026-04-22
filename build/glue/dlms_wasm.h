@@ -23,6 +23,17 @@ int dlms_client_parse_application_association_response(int handle,
 int dlms_client_release_request(int handle, uint8_t* out, int* out_len);
 int dlms_client_disconnect_request(int handle, uint8_t* out, int* out_len);
 
+/**
+ * Parse a UA/AARE/AA-response from the client's existing reply state, without
+ * re-running HDLC unwrap. Caller must have driven `dlms_client_get_data` to
+ * completion first (`is_complete == 1`). Mirrors the Python gurux idiom of
+ * `getData(rd, reply)` → `parseUAResponse(reply.data)`, and lets higher-level
+ * TS code accumulate chunked responses without double-advancing HDLC state.
+ */
+int dlms_client_parse_ua_from_reply(int handle);
+int dlms_client_parse_aare_from_reply(int handle);
+int dlms_client_parse_application_association_response_from_reply(int handle);
+
 int dlms_client_get_data(int handle, const uint8_t* data, int len,
                          int* is_complete, int* more_data);
 int dlms_client_receiver_ready(int handle, int type,

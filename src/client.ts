@@ -86,6 +86,28 @@ export class DlmsClient {
     this.callParseMethod('dlms_client_parse_application_association_response', data);
   }
 
+  /**
+   * Parse a UA / AARE / AA-response from the reply already populated by a
+   * prior `getData()` loop, without re-running HDLC unwrap. Use this instead
+   * of `parseUaResponse` / `parseAareResponse` when you've driven `getData()`
+   * yourself to accumulate a chunked handshake response — calling the
+   * `parseXxxResponse(bytes)` variants in that case would double-advance
+   * HDLC I-frame state and fail on AARE.
+   */
+  parseUaFromReply(): void {
+    this.callFromReplyMethod('dlms_client_parse_ua_from_reply');
+  }
+
+  parseAareFromReply(): void {
+    this.callFromReplyMethod('dlms_client_parse_aare_from_reply');
+  }
+
+  parseApplicationAssociationResponseFromReply(): void {
+    this.callFromReplyMethod(
+      'dlms_client_parse_application_association_response_from_reply'
+    );
+  }
+
   releaseRequest(): Uint8Array[] {
     return this.callFrameMethod('dlms_client_release_request');
   }
@@ -302,6 +324,15 @@ export class DlmsClient {
       this.module._free(outPtr);
       this.module._free(lenPtr);
     }
+  }
+
+  private callFromReplyMethod(name: string): void {
+    this.ensureNotFreed();
+    const ret = this.module.ccall(
+      name, 'number',
+      ['number'], [this._handle]
+    ) as number;
+    if (ret !== 0) this.throwError();
   }
 
   private callParseMethod(name: string, data: Uint8Array): void {

@@ -372,6 +372,60 @@ int dlms_client_parse_application_association_response(int handle,
     return ret;
 }
 
+static int parse_from_reply_preamble(int handle, ClientSlot** slot_out) {
+    if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
+        set_error("invalid client handle %d", handle);
+        return -1;
+    }
+    ClientSlot* slot = clients[handle];
+    if (!slot->reply) {
+        set_error("no reply populated; call dlms_client_get_data first");
+        return -1;
+    }
+    if (!slot->reply->complete) {
+        set_error("reply not complete; drive dlms_client_get_data until is_complete=1 first");
+        return -1;
+    }
+    *slot_out = slot;
+    return 0;
+}
+
+int dlms_client_parse_ua_from_reply(int handle) {
+    ClientSlot* slot;
+    int pre = parse_from_reply_preamble(handle, &slot);
+    if (pre != 0) return pre;
+
+    int ret = cl_parseUAResponse(&slot->settings, &slot->reply->data);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_parseUAResponse failed", ret);
+    }
+    return ret;
+}
+
+int dlms_client_parse_aare_from_reply(int handle) {
+    ClientSlot* slot;
+    int pre = parse_from_reply_preamble(handle, &slot);
+    if (pre != 0) return pre;
+
+    int ret = cl_parseAAREResponse(&slot->settings, &slot->reply->data);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_parseAAREResponse failed", ret);
+    }
+    return ret;
+}
+
+int dlms_client_parse_application_association_response_from_reply(int handle) {
+    ClientSlot* slot;
+    int pre = parse_from_reply_preamble(handle, &slot);
+    if (pre != 0) return pre;
+
+    int ret = cl_parseApplicationAssociationResponse(&slot->settings, &slot->reply->data);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_parseApplicationAssociationResponse failed", ret);
+    }
+    return ret;
+}
+
 int dlms_client_release_request(int handle, uint8_t* out, int* out_len) {
     if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
         set_error("invalid client handle %d", handle);
