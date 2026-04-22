@@ -1,6 +1,6 @@
 {
   "name": "@bubblyworld/gurux-dlms-ts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A wasm build of the GuruxDLMS.c DLMS/COSEM protocol library with a TypeScript interface. Runs with zero dependencies in both node and web environments.",
   "type": "module",
   "main": "./dist/index.node.cjs",
