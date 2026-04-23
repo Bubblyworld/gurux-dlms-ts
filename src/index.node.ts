@@ -24,5 +24,6 @@ export {
   Clock,
   DisconnectControl,
   ProfileGeneric,
+  SORT_METHOD,
 } from './helpers/index.js';
-export type { CaptureColumn } from './helpers/index.js';
+export type { CaptureColumn, SortObject } from './helpers/index.js';

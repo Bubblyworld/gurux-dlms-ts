@@ -8,6 +8,22 @@ export interface CaptureColumn {
   attributeIndex: number;
 }
 
+export interface SortObject {
+  objectType: number;
+  obis: string;
+  attributeIndex: number;
+  dataIndex: number;
+}
+
+export const SORT_METHOD = {
+  FIFO: 1,
+  LIFO: 2,
+  LARGEST: 3,
+  SMALLEST: 4,
+  NEAREST_TO_ZERO: 5,
+  FURTHEST_FROM_ZERO: 6,
+} as const;
+
 export class ProfileGeneric {
   readonly inner: DlmsObject;
   private module: EmscriptenModule;
@@ -19,6 +35,48 @@ export class ProfileGeneric {
 
   get capturePeriod(): number {
     return this.inner.getInt(4);
+  }
+
+  get sortMethod(): number {
+    return this.inner.getInt(5);
+  }
+
+  get entriesInUse(): number {
+    return this.inner.getInt(7);
+  }
+
+  get profileEntries(): number {
+    return this.inner.getInt(8);
+  }
+
+  getSortObject(): SortObject | null {
+    const typePtr = this.module._malloc(4);
+    const obisPtr = this.module._malloc(32);
+    const attrPtr = this.module._malloc(4);
+    const dataPtr = this.module._malloc(4);
+    try {
+      const ret = this.module.ccall(
+        'dlms_pg_sort_object', 'number',
+        ['number', 'number', 'number', 'number', 'number', 'number'],
+        [this.inner.handle, typePtr, obisPtr, 32, attrPtr, dataPtr]
+      ) as number;
+      if (ret === 1) return null;
+      if (ret !== 0) {
+        const err = this.module.ccall('dlms_last_error', 'string', [], []) as string;
+        throw new DlmsException({ kind: 'wasm', message: err });
+      }
+      return {
+        objectType: this.module.getValue(typePtr, 'i32'),
+        obis: this.module.UTF8ToString(obisPtr),
+        attributeIndex: this.module.getValue(attrPtr, 'i32'),
+        dataIndex: this.module.getValue(dataPtr, 'i32'),
+      };
+    } finally {
+      this.module._free(typePtr);
+      this.module._free(obisPtr);
+      this.module._free(attrPtr);
+      this.module._free(dataPtr);
+    }
   }
 
   get rowCount(): number {

@@ -2,3 +2,4 @@ node_modules/
 dist/
 build/gurux.js
 build/gurux.wasm
+scripts/archive/

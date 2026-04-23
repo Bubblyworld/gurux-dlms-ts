@@ -1,3 +1,4 @@
+#define _GNU_SOURCE  /* for timegm / localtime_r under -std=c99 */
 #include "dlms_wasm.h"
 
 #include <stdlib.h>
@@ -720,6 +721,14 @@ int dlms_object_get_int(int obj_handle, int attribute) {
         if (attribute == 4)
             return (int)((gxDisconnectControl*)obj)->controlMode;
         break;
+    case DLMS_OBJECT_TYPE_PROFILE_GENERIC: {
+        gxProfileGeneric* pg = (gxProfileGeneric*)obj;
+        if (attribute == 4) return (int)pg->capturePeriod;
+        if (attribute == 5) return (int)pg->sortMethod;
+        if (attribute == 7) return (int)pg->entriesInUse;
+        if (attribute == 8) return (int)pg->profileEntries;
+        break;
+    }
     default:
         break;
     }
@@ -924,6 +933,30 @@ void dlms_object_set_bytes(int obj_handle, int attribute,
     }
 }
 
+/* Parse an ISO-8601 UTC timestamp (e.g. "2026-03-01T00:00:00Z") into a struct
+ * tm whose fields are the LOCAL-time representation of that instant. Gurux
+ * internally passes struct tm through mktime(), which interprets fields as
+ * local time, so we pre-shift here to make "UTC in → UTC out" hold end-to-end.
+ * Returns 0 on success. */
+static int parse_iso_to_local_tm(const char* iso, struct tm* out) {
+    int y = 0, M = 0, d = 0, h = 0, m = 0, s = 0;
+    if (sscanf(iso, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) < 3) {
+        return -1;
+    }
+    struct tm utc;
+    memset(&utc, 0, sizeof(utc));
+    utc.tm_year = y - 1900;
+    utc.tm_mon = M - 1;
+    utc.tm_mday = d;
+    utc.tm_hour = h;
+    utc.tm_min = m;
+    utc.tm_sec = s;
+    time_t epoch = timegm(&utc);
+    if (epoch == (time_t)-1) return -1;
+    localtime_r(&epoch, out);
+    return 0;
+}
+
 int dlms_client_read_by_range(int handle, int obj_handle,
                               const char* start_iso, const char* end_iso,
                               uint8_t* out, int* out_len) {
@@ -945,25 +978,13 @@ int dlms_client_read_by_range(int handle, int obj_handle,
     struct tm start_tm, end_tm;
     memset(&start_tm, 0, sizeof(start_tm));
     memset(&end_tm, 0, sizeof(end_tm));
-
-    int y, M, d, h, m, s;
-    y = M = d = h = m = s = 0;
-    if (sscanf(start_iso, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) >= 3) {
-        start_tm.tm_year = y - 1900;
-        start_tm.tm_mon = M - 1;
-        start_tm.tm_mday = d;
-        start_tm.tm_hour = h;
-        start_tm.tm_min = m;
-        start_tm.tm_sec = s;
+    if (parse_iso_to_local_tm(start_iso, &start_tm) != 0) {
+        set_error("could not parse start ISO timestamp: %s", start_iso);
+        return -1;
     }
-    y = M = d = h = m = s = 0;
-    if (sscanf(end_iso, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) >= 3) {
-        end_tm.tm_year = y - 1900;
-        end_tm.tm_mon = M - 1;
-        end_tm.tm_mday = d;
-        end_tm.tm_hour = h;
-        end_tm.tm_min = m;
-        end_tm.tm_sec = s;
+    if (parse_iso_to_local_tm(end_iso, &end_tm) != 0) {
+        set_error("could not parse end ISO timestamp: %s", end_iso);
+        return -1;
     }
 
     message msgs;
@@ -972,6 +993,42 @@ int dlms_client_read_by_range(int handle, int obj_handle,
                                  &start_tm, &end_tm, &msgs);
     if (ret != 0) {
         set_error("DLMS:%d:cl_readRowsByRange failed", ret);
+        mes_clear(&msgs);
+        return ret;
+    }
+    int rc = write_messages_to_buf(&msgs, out, out_len);
+    mes_clear(&msgs);
+    return rc;
+}
+
+int dlms_client_read_by_entry(int handle, int obj_handle,
+                              int index, int count,
+                              uint8_t* out, int* out_len) {
+    if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
+        set_error("invalid client handle %d", handle);
+        return -1;
+    }
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) {
+        set_error("invalid object handle %d", obj_handle);
+        return -1;
+    }
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
+        set_error("object is not a profile generic");
+        return -1;
+    }
+    if (index < 1 || count < 1) {
+        set_error("index and count must be >= 1 (DLMS entries are 1-based)");
+        return -1;
+    }
+
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+
+    message msgs;
+    mes_init(&msgs);
+    int ret = cl_readRowsByEntry(&clients[handle]->settings, pg,
+                                 (uint32_t)index, (uint32_t)count, &msgs);
+    if (ret != 0) {
+        set_error("DLMS:%d:cl_readRowsByEntry failed", ret);
         mes_clear(&msgs);
         return ret;
     }
@@ -1024,6 +1081,32 @@ int dlms_pg_capture_object(int obj_handle, int col,
     *attr_index = target ? target->attributeIndex : 0;
     if (obis_len >= 20) {
         hlp_getLogicalNameToString(obj->logicalName, obis);
+    }
+    return 0;
+}
+
+/* Returns 0 on success, 1 when no sort object is set (out params untouched),
+ * negative on error. */
+int dlms_pg_sort_object(int obj_handle, int* object_type,
+                        char* obis, int obis_len,
+                        int* attr_index, int* data_index) {
+    if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) {
+        set_error("invalid object handle %d", obj_handle);
+        return -1;
+    }
+    if (objects[obj_handle]->objectType != DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
+        set_error("object is not a profile generic");
+        return -1;
+    }
+    gxProfileGeneric* pg = (gxProfileGeneric*)objects[obj_handle];
+    if (!pg->sortObject) {
+        return 1;
+    }
+    *object_type = pg->sortObject->objectType;
+    *attr_index = pg->sortObjectAttributeIndex;
+    *data_index = pg->sortObjectDataIndex;
+    if (obis_len >= 20) {
+        hlp_getLogicalNameToString(pg->sortObject->logicalName, obis);
     }
     return 0;
 }

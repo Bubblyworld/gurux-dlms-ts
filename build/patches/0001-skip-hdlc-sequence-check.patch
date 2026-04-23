@@ -1,0 +1,27 @@
+From: local <local@gurux-dlms-ts>
+Subject: Always accept incoming HDLC I-frames regardless of N(R)/N(S)
+
+The Hexing HXE130 (and likely other Hexing meters) does not increment
+its HDLC send-sequence across successive APDUs: every I-frame it emits
+carries control byte 0x30 (N(S)=0, N(R)=1). Since SNRM negotiates
+windowSizeRX=1 with this meter, Gurux's checkFrame rejects every frame
+after AARE as out-of-sequence, causing dlms_getHdlcData to silently
+drop responses (seen client-side as complete=false, moreData=0).
+
+Bypass the sequence check entirely. We're running over TLS with a
+single outstanding I-frame at a time; HDLC-level reordering/duplication
+can't happen, and block numbers / invoke-ids already guard the APDU
+layer.
+
+--- a/development/src/dlmsSettings.c
++++ b/development/src/dlmsSettings.c
+@@ -300,6 +300,9 @@ unsigned char checkFrame(
+     dlmsSettings* settings,
+     unsigned char frame)
+ {
++    // Accept every HDLC I-frame; some meters (e.g. Hexing HXE130) pin
++    // N(S)=0 across the session and would otherwise be rejected.
++    return 1;
+     //If notify
+     if (frame == 0x13)
+     {

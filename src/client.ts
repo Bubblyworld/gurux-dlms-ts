@@ -233,6 +233,27 @@ export class DlmsClient {
     }
   }
 
+  readByEntry(obj: DlmsObject, index: number, count: number): Uint8Array[] {
+    this.ensureNotFreed();
+    const outPtr = this.module._malloc(this.outBufSize);
+    const lenPtr = this.module._malloc(4);
+    this.module.setValue(lenPtr, this.outBufSize, 'i32');
+    try {
+      const ret = this.module.ccall(
+        'dlms_client_read_by_entry', 'number',
+        ['number', 'number', 'number', 'number', 'number', 'number'],
+        [this._handle, obj.handle, index, count, outPtr, lenPtr]
+      ) as number;
+      if (ret !== 0) this.throwError();
+      const len = this.module.getValue(lenPtr, 'i32');
+      const raw = new Uint8Array(this.module.HEAPU8.buffer, outPtr, len).slice();
+      return this.splitFrames(raw);
+    } finally {
+      this.module._free(outPtr);
+      this.module._free(lenPtr);
+    }
+  }
+
   getObjectsRequest(): Uint8Array[] {
     return this.callFrameMethod('dlms_client_get_objects_request');
   }

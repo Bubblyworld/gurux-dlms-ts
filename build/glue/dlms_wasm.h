@@ -66,6 +66,9 @@ void dlms_object_set_bytes(int obj_handle, int attribute,
 int dlms_client_read_by_range(int handle, int obj_handle,
                               const char* start_iso, const char* end_iso,
                               uint8_t* out, int* out_len);
+int dlms_client_read_by_entry(int handle, int obj_handle,
+                              int index, int count,
+                              uint8_t* out, int* out_len);
 
 int dlms_client_get_objects_request(int handle, uint8_t* out, int* out_len);
 int dlms_client_parse_objects(int handle, const uint8_t* data, int len);
@@ -78,6 +81,9 @@ int dlms_pg_column_count(int obj_handle);
 int dlms_pg_capture_object(int obj_handle, int col,
                            int* object_type, char* obis, int obis_len,
                            int* attr_index);
+int dlms_pg_sort_object(int obj_handle, int* object_type,
+                        char* obis, int obis_len,
+                        int* attr_index, int* data_index);
 int dlms_pg_cell_type(int obj_handle, int row, int col);
 double dlms_pg_cell_double(int obj_handle, int row, int col);
 int dlms_pg_cell_string(int obj_handle, int row, int col,
