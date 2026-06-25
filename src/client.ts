@@ -112,6 +112,13 @@ export class DlmsClient {
     return this.callFrameMethod('dlms_client_release_request');
   }
 
+  /**
+   * Build a DISC frame to tear down the HDLC link. Unlike stock gurux — which
+   * suppresses the DISC unless it believes the link is already up — this always
+   * emits the frame, so it can also be used to clear a stale meter-side session
+   * (e.g. a Hexing meter that ignores a fresh SNRM until the prior session is
+   * torn down) before the SNRM/UA handshake has completed.
+   */
   disconnectRequest(): Uint8Array[] {
     return this.callFrameMethod('dlms_client_disconnect_request');
   }

@@ -450,9 +450,17 @@ int dlms_client_disconnect_request(int handle, uint8_t* out, int* out_len) {
         set_error("invalid client handle %d", handle);
         return -1;
     }
+    dlmsSettings* settings = &clients[handle]->settings;
+    // cl_disconnectRequest emits nothing unless it believes the HDLC link is up.
+    // A meter holding a stale session never sends UA, so we never reach the
+    // connected state — yet that is exactly when we need to send a DISC to clear
+    // it. Asserting the HDLC bit lets gurux frame the DISC from the configured
+    // addresses; it clears the bit again as part of the request, and it is
+    // already set on a normal teardown, so this is a no-op there.
+    settings->connected = (DLMS_CONNECTION_STATE)(settings->connected | DLMS_CONNECTION_STATE_HDLC);
     message msgs;
     mes_init(&msgs);
-    int ret = cl_disconnectRequest(&clients[handle]->settings, &msgs);
+    int ret = cl_disconnectRequest(settings, &msgs);
     if (ret != 0) {
         set_error("DLMS:%d:cl_disconnectRequest failed", ret);
         mes_clear(&msgs);

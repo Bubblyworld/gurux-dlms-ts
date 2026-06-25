@@ -126,6 +126,29 @@ describe('client-server integration', () => {
     server.free();
   });
 
+  it('emits a DISC frame before any handshake, to clear a stale meter session', async () => {
+    const module = await loadGuruxModule();
+    const client = await DlmsClient.create(
+      { clientAddress: 16, serverAddress: 1, password: '00000000' },
+      module,
+    );
+
+    // Stock gurux suppresses the DISC until it believes the HDLC link is up;
+    // we always emit it so a stale session can be torn down before SNRM/UA.
+    const frames = client.disconnectRequest();
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames[0].length).toBeGreaterThan(0);
+
+    // A meter accepts it as a real DISC and answers with a UA.
+    const server = await DlmsServer.create(module);
+    server.initialize();
+    const reply = server.handleRequest(frames[0]);
+    expect(reply.length).toBeGreaterThan(0);
+
+    client.free();
+    server.free();
+  });
+
   it('rejects parseUaFromReply / parseAareFromReply before getData() is complete', async () => {
     const module = await loadGuruxModule();
     const client = await DlmsClient.create(
