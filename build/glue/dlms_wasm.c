@@ -995,6 +995,31 @@ int dlms_client_read_by_range(int handle, int obj_handle,
         return -1;
     }
 
+    /* Default the range-restricting object to the profile's clock capture
+     * column when the meter exposes no sort object. Gurux otherwise restricts
+     * by capture column 0, which on some meters (e.g. Kamstrup OMNIPOWER) is
+     * the profile's own entry counter rather than the clock, so the meter
+     * rejects the range descriptor. Selecting the first clock column keeps
+     * range reads working regardless of column order, and is a no-op when a
+     * sort object is already set. */
+    if (!pg->sortObject) {
+        for (uint16_t i = 0; i < pg->captureObjects.size; ++i) {
+            gxKey* key = NULL;
+            if (arr_getByIndex(&pg->captureObjects, i, (void**)&key) != 0 ||
+                !key || !key->key) {
+                continue;
+            }
+            gxObject* col = (gxObject*)key->key;
+            if (col->objectType == DLMS_OBJECT_TYPE_CLOCK) {
+                gxTarget* target = (gxTarget*)key->value;
+                pg->sortObject = col;
+                pg->sortObjectAttributeIndex = target ? target->attributeIndex : 2;
+                pg->sortObjectDataIndex = 0;
+                break;
+            }
+        }
+    }
+
     message msgs;
     mes_init(&msgs);
     int ret = cl_readRowsByRange(&clients[handle]->settings, pg,

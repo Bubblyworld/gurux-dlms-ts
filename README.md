@@ -114,7 +114,10 @@ const columns = pg.getCaptureColumns();
 // e.g. [{ objectType: 8, obis: '0.0.1.0.0.255', attributeIndex: 2 },
 //        { objectType: 3, obis: '1.0.1.8.0.255', attributeIndex: 2 }, ...]
 
-// Read data by time range.
+// Read data by time range. The range is restricted on the profile's clock
+// capture column, which is located automatically wherever it sits in the
+// column list (some meters, e.g. Kamstrup, do not put the clock first). If
+// the meter reports a sort object it is used as-is.
 const end = new Date();
 const start = new Date(end.getTime() - 6 * 60 * 60 * 1000);
 const frames = client.readByRange(pg.inner, start, end);
