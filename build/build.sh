@@ -48,14 +48,19 @@ OBJ_DIR="$TEMP_DIR/obj"
 mkdir -p "$OBJ_DIR"
 for src in $SOURCES; do
     name=$(basename "$src" .c)
+    # Gurux gates its byte buffer width on _WIN32/_WIN64/__linux__, none of
+    # which Emscripten defines, so without GX_DLMS_BYTE_BUFFER_SIZE_32 buffers
+    # are uint16-sized and replies over ~32KB fail with error 260.
     emcc -c -O2 -std=c99 \
         -I"$GURUX_INC" \
         -DDLMS_IGNORE_NOTIFY \
+        -DGX_DLMS_BYTE_BUFFER_SIZE_32 \
         "$src" -o "$OBJ_DIR/$name.o" &
 done
 
 emcc -c -O2 -std=c99 \
     -I"$GURUX_INC" \
+    -DGX_DLMS_BYTE_BUFFER_SIZE_32 \
     "$GLUE_DIR/dlms_wasm.c" -o "$OBJ_DIR/dlms_wasm.o" &
 
 wait
