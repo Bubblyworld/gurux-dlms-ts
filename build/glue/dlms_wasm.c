@@ -798,15 +798,49 @@ const char* dlms_object_get_str(int obj_handle, int attribute) {
         break;
     }
 
-    if (val && val->strVal) {
+    if (!val) return "";
+
+    // The variant's payload is a union, so only the member matching vt may
+    // be read: a numeric value reinterpreted as strVal is a wild pointer.
+    switch (val->vt) {
+    case DLMS_DATA_TYPE_STRING:
+    case DLMS_DATA_TYPE_STRING_UTF8:
+    case DLMS_DATA_TYPE_OCTET_STRING: {
+        if (!val->strVal) return "";
         int sz = val->strVal->size;
         if (sz > (int)sizeof(str_buf) - 1) sz = (int)sizeof(str_buf) - 1;
         memcpy(str_buf, val->strVal->data, sz);
         str_buf[sz] = '\0';
         return str_buf;
     }
-
-    return "";
+    case DLMS_DATA_TYPE_INT8:
+        snprintf(str_buf, sizeof(str_buf), "%d", (int)val->cVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_INT16:
+        snprintf(str_buf, sizeof(str_buf), "%d", (int)val->iVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_INT32:
+        snprintf(str_buf, sizeof(str_buf), "%ld", (long)val->lVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_INT64:
+        snprintf(str_buf, sizeof(str_buf), "%lld", (long long)val->llVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_UINT8:
+    case DLMS_DATA_TYPE_ENUM:
+        snprintf(str_buf, sizeof(str_buf), "%u", (unsigned)val->bVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_UINT16:
+        snprintf(str_buf, sizeof(str_buf), "%u", (unsigned)val->uiVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_UINT32:
+        snprintf(str_buf, sizeof(str_buf), "%lu", (unsigned long)val->ulVal);
+        return str_buf;
+    case DLMS_DATA_TYPE_UINT64:
+        snprintf(str_buf, sizeof(str_buf), "%llu", (unsigned long long)val->ullVal);
+        return str_buf;
+    default:
+        return "";
+    }
 }
 
 int dlms_object_get_bytes(int obj_handle, int attribute,
@@ -829,7 +863,20 @@ int dlms_object_get_bytes(int obj_handle, int attribute,
         break;
     }
 
-    if (!val || !val->byteArr) {
+    if (!val || val->vt == DLMS_DATA_TYPE_NONE) {
+        *out_len = 0;
+        return 0;
+    }
+
+    // Only byte-string members of the variant's union hold a gxByteBuffer.
+    if (val->vt != DLMS_DATA_TYPE_OCTET_STRING &&
+        val->vt != DLMS_DATA_TYPE_STRING &&
+        val->vt != DLMS_DATA_TYPE_STRING_UTF8) {
+        set_error("attribute %d holds data type %d, not a byte string", attribute, (int)val->vt);
+        return -1;
+    }
+
+    if (!val->byteArr) {
         *out_len = 0;
         return 0;
     }
