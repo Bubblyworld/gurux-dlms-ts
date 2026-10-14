@@ -2,6 +2,7 @@ import { loadGuruxModule } from './module.js';
 import { DlmsObject } from './object.js';
 import type { EmscriptenModule, ClientOptions, GetDataResult, AssociationEntry } from './types.js';
 import { DlmsException, InterfaceType, DLMS_ERROR_MESSAGES, ACSE_ERROR_RANGE } from './types.js';
+import type { DlmsValue } from './value.js';
 
 const DEFAULT_OUT_BUF_SIZE = 8192;
 
@@ -258,6 +259,33 @@ export class DlmsClient {
     } finally {
       this.module._free(outPtr);
       this.module._free(lenPtr);
+    }
+  }
+
+  /**
+   * Value of the last complete reply, as Gurux decoded it; for a profile
+   * generic buffer read, the array of rows whatever its capture objects.
+   * Read it before `updateValue`, which clears the reply.
+   */
+  getReplyValue(): DlmsValue {
+    this.ensureNotFreed();
+    const len = this.module.ccall(
+      'dlms_client_reply_json', 'number', ['number'], [this._handle]
+    ) as number;
+    if (len < 0) this.throwError();
+    const ptr = this.module._malloc(Math.max(len, 1));
+    try {
+      const ret = this.module.ccall(
+        'dlms_client_copy_reply_json', 'number',
+        ['number', 'number'], [ptr, len]
+      ) as number;
+      if (ret !== 0) this.throwError();
+      const json = new TextDecoder().decode(
+        new Uint8Array(this.module.HEAPU8.buffer, ptr, len).slice()
+      );
+      return JSON.parse(json) as DlmsValue;
+    } finally {
+      this.module._free(ptr);
     }
   }
 

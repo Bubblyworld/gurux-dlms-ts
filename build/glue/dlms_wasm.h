@@ -89,6 +89,9 @@ double dlms_pg_cell_double(int obj_handle, int row, int col);
 int dlms_pg_cell_string(int obj_handle, int row, int col,
                         char* buf, int buf_len);
 
+int dlms_client_reply_json(int handle);
+int dlms_client_copy_reply_json(uint8_t* out, int out_len);
+
 int  dlms_server_create(void);
 void dlms_server_destroy(int handle);
 int  dlms_server_add_object(int handle, int obj_handle);

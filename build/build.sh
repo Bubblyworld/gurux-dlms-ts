@@ -90,6 +90,7 @@ _dlms_pg_sort_object,\
 _dlms_pg_cell_type,_dlms_pg_cell_double,_dlms_pg_cell_string,\
 _dlms_client_get_objects_request,_dlms_client_parse_objects,\
 _dlms_client_get_parsed_object_count,_dlms_client_get_parsed_object,\
+_dlms_client_reply_json,_dlms_client_copy_reply_json,\
 _dlms_server_create,_dlms_server_destroy,\
 _dlms_server_add_object,_dlms_server_initialize,_dlms_server_handle_request"
 

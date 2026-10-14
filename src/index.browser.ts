@@ -3,6 +3,8 @@ export { DlmsServer } from './server.js';
 export { DlmsObject } from './object.js';
 export { loadGuruxModule } from './module.js';
 export { normalizeObis } from './obis.js';
+export { valueBytes, valueDateTime, valueNumber, valueObis } from './value.js';
+export type { DlmsDateTime, DlmsValue } from './value.js';
 export {
   ObjectType,
   InterfaceType,

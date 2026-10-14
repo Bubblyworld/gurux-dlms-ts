@@ -650,6 +650,8 @@ int dlms_client_method(int handle, int obj_handle, int method_index,
     return rc;
 }
 
+static double variant_number(dlmsVARIANT* v);
+
 int dlms_client_update_value(int handle, int obj_handle, int attribute,
                              const uint8_t* reply_data, int reply_len) {
     if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
@@ -671,6 +673,9 @@ int dlms_client_update_value(int handle, int obj_handle, int attribute,
 
     if (reply_data && reply_len > 0) {
         var_addBytes(&val, reply_data, (uint16_t)reply_len);
+    } else if (slot->reply && slot->reply->dataValue.vt == DLMS_DATA_TYPE_BINARY_CODED_DESIMAL) {
+        /* var_copy leaves a BCD variant empty, so pass the number it spells. */
+        var_setUInt64(&val, (uint64_t)variant_number(&slot->reply->dataValue));
     } else if (slot->reply) {
         var_copy(&val, &slot->reply->dataValue);
     }
@@ -743,6 +748,25 @@ int dlms_object_get_int(int obj_handle, int attribute) {
     return 0;
 }
 
+
+/*
+ * Numeric value of a variant. Gurux holds binary-coded decimal as a string of
+ * its digits, which reads as the number it spells; any other variant reads as
+ * var_toDouble does.
+ */
+static double variant_number(dlmsVARIANT* v) {
+    if (v->vt == DLMS_DATA_TYPE_BINARY_CODED_DESIMAL && v->strVal && v->strVal->size > 0) {
+        double n = 0;
+        for (uint32_t i = 0; i < v->strVal->size; ++i) {
+            unsigned char ch = v->strVal->data[i];
+            if (ch < '0' || ch > '9') return 0.0;
+            n = n * 10 + (ch - '0');
+        }
+        return n;
+    }
+    return var_toDouble(v);
+}
+
 double dlms_object_get_double(int obj_handle, int attribute) {
     if (obj_handle < 0 || obj_handle >= MAX_OBJECTS || !objects[obj_handle]) return 0.0;
     gxObject* obj = objects[obj_handle];
@@ -750,15 +774,15 @@ double dlms_object_get_double(int obj_handle, int attribute) {
     switch (obj->objectType) {
     case DLMS_OBJECT_TYPE_DATA:
         if (attribute == 2)
-            return var_toDouble(&((gxData*)obj)->value);
+            return variant_number(&((gxData*)obj)->value);
         break;
     case DLMS_OBJECT_TYPE_REGISTER:
         if (attribute == 2)
-            return var_toDouble(&((gxRegister*)obj)->value);
+            return variant_number(&((gxRegister*)obj)->value);
         break;
     case DLMS_OBJECT_TYPE_EXTENDED_REGISTER:
         if (attribute == 2)
-            return var_toDouble(&((gxExtendedRegister*)obj)->value);
+            return variant_number(&((gxExtendedRegister*)obj)->value);
         break;
     default:
         break;
@@ -1220,7 +1244,7 @@ double dlms_pg_cell_double(int obj_handle, int row, int col) {
     dlmsVARIANT* cell = NULL;
     va_getByIndex(va, col, &cell);
     if (!cell) return 0.0;
-    return var_toDouble(cell);
+    return variant_number(cell);
 }
 
 int dlms_pg_cell_string(int obj_handle, int row, int col,
@@ -1267,7 +1291,7 @@ int dlms_pg_cell_string(int obj_handle, int row, int col,
         memcpy(buf, cell->byteArr->data, sz);
         buf[sz] = '\0';
     } else {
-        snprintf(buf, buf_len, "%f", var_toDouble(cell));
+        snprintf(buf, buf_len, "%f", variant_number(cell));
     }
     return 0;
 }
@@ -1351,7 +1375,186 @@ int dlms_client_get_parsed_object(int handle, int index,
     return 0;
 }
 
+
+/* ===== Reply values as JSON ===== */
+
+static gxByteBuffer json_buf;
+static int json_buf_ready = 0;
+
+static void json_append(const char* fmt, ...) {
+    char tmp[64];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    va_end(ap);
+    if (n > 0) bb_set(&json_buf, (unsigned char*)tmp, (uint32_t)(n < (int)sizeof(tmp) ? n : (int)sizeof(tmp) - 1));
+}
+
+static void json_hex(const unsigned char* data, uint32_t len) {
+    static const char digits[] = "0123456789abcdef";
+    for (uint32_t i = 0; i < len; ++i) {
+        bb_setUInt8(&json_buf, digits[data[i] >> 4]);
+        bb_setUInt8(&json_buf, digits[data[i] & 0x0f]);
+    }
+}
+
+static void json_string(const unsigned char* data, uint32_t len) {
+    bb_setUInt8(&json_buf, '"');
+    for (uint32_t i = 0; i < len; ++i) {
+        unsigned char ch = data[i];
+        if (ch == '"' || ch == '\\') {
+            bb_setUInt8(&json_buf, '\\');
+            bb_setUInt8(&json_buf, ch);
+        } else if (ch < 0x20 || ch >= 0x7f) {
+            json_append("\\u%04x", ch);
+        } else {
+            bb_setUInt8(&json_buf, ch);
+        }
+    }
+    bb_setUInt8(&json_buf, '"');
+}
+
+static void json_time(const char* type, gxtime* t) {
+    json_append("{\"type\":\"%s\"", type);
+#ifndef DLMS_USE_EPOCH_TIME
+    uint16_t skip = (uint16_t)t->skip;
+    if (!(skip & DATETIME_SKIPS_YEAR)) json_append(",\"year\":%d", t->value.tm_year + 1900);
+    if (!(skip & DATETIME_SKIPS_MONTH)) json_append(",\"month\":%d", t->value.tm_mon + 1);
+    if (!(skip & DATETIME_SKIPS_DAY)) json_append(",\"day\":%d", t->value.tm_mday);
+    if (!(skip & DATETIME_SKIPS_HOUR)) json_append(",\"hour\":%d", t->value.tm_hour);
+    if (!(skip & DATETIME_SKIPS_MINUTE)) json_append(",\"minute\":%d", t->value.tm_min);
+    if (!(skip & DATETIME_SKIPS_SECOND)) json_append(",\"second\":%d", t->value.tm_sec);
+    if (!(skip & DATETIME_SKIPS_DEVITATION)) json_append(",\"deviation\":%d", t->deviation);
+    if (!(skip & DATETIME_SKIPS_STATUS)) json_append(",\"status\":%d", (int)t->status);
+#endif
+    bb_setUInt8(&json_buf, '}');
+}
+
+static int json_variant(dlmsVARIANT* v) {
+    switch (v->vt & ~DLMS_DATA_TYPE_BYREF) {
+    case DLMS_DATA_TYPE_NONE:
+        json_append("{\"type\":\"null\"}");
+        return 0;
+    case DLMS_DATA_TYPE_ARRAY:
+    case DLMS_DATA_TYPE_STRUCTURE: {
+        json_append("{\"type\":\"%s\",\"items\":[",
+                    (v->vt & ~DLMS_DATA_TYPE_BYREF) == DLMS_DATA_TYPE_ARRAY ? "array" : "structure");
+        if (v->Arr) {
+            for (uint16_t i = 0; i < v->Arr->size; ++i) {
+                dlmsVARIANT* item = NULL;
+                if (va_getByIndex(v->Arr, i, &item) != 0 || !item) return -1;
+                if (i) bb_setUInt8(&json_buf, ',');
+                if (json_variant(item) != 0) return -1;
+            }
+        }
+        json_append("]}");
+        return 0;
+    }
+    case DLMS_DATA_TYPE_BOOLEAN:
+        json_append("{\"type\":\"boolean\",\"value\":%s}", v->boolVal ? "true" : "false");
+        return 0;
+    case DLMS_DATA_TYPE_ENUM:
+        json_append("{\"type\":\"enum\",\"value\":%d}", v->bVal);
+        return 0;
+    case DLMS_DATA_TYPE_INT8:
+    case DLMS_DATA_TYPE_INT16:
+    case DLMS_DATA_TYPE_INT32:
+    case DLMS_DATA_TYPE_UINT8:
+    case DLMS_DATA_TYPE_UINT16:
+    case DLMS_DATA_TYPE_UINT32:
+        json_append("{\"type\":\"integer\",\"value\":%lld}", (long long)var_toInteger(v));
+        return 0;
+    case DLMS_DATA_TYPE_INT64:
+        json_append("{\"type\":\"integer\",\"value\":%lld}", (long long)v->llVal);
+        return 0;
+    case DLMS_DATA_TYPE_UINT64:
+        json_append("{\"type\":\"integer\",\"value\":%llu}", (unsigned long long)v->ullVal);
+        return 0;
+    case DLMS_DATA_TYPE_FLOAT32:
+    case DLMS_DATA_TYPE_FLOAT64:
+        json_append("{\"type\":\"float\",\"value\":%.17g}", var_toDouble(v));
+        return 0;
+    case DLMS_DATA_TYPE_OCTET_STRING:
+        json_append("{\"type\":\"octet-string\",\"hex\":\"");
+        if (v->byteArr) json_hex(v->byteArr->data, v->byteArr->size);
+        json_append("\"}");
+        return 0;
+    case DLMS_DATA_TYPE_BINARY_CODED_DESIMAL:
+        json_append("{\"type\":\"bcd\",\"digits\":");
+        if (v->strVal) json_string(v->strVal->data, v->strVal->size);
+        else json_append("\"\"");
+        bb_setUInt8(&json_buf, '}');
+        return 0;
+    case DLMS_DATA_TYPE_STRING:
+    case DLMS_DATA_TYPE_STRING_UTF8:
+        json_append("{\"type\":\"string\",\"value\":");
+        if (v->strVal) json_string(v->strVal->data, v->strVal->size);
+        else json_append("\"\"");
+        bb_setUInt8(&json_buf, '}');
+        return 0;
+    case DLMS_DATA_TYPE_BIT_STRING: {
+        json_append("{\"type\":\"bit-string\",\"bits\":\"");
+        if (v->bitArr) {
+            for (uint16_t i = 0; i < v->bitArr->size; ++i) {
+                unsigned char bit = 0;
+                ba_getByIndex(v->bitArr, i, &bit);
+                bb_setUInt8(&json_buf, bit ? '1' : '0');
+            }
+        }
+        json_append("\"}");
+        return 0;
+    }
+    case DLMS_DATA_TYPE_DATETIME:
+        json_time("date-time", v->dateTime);
+        return 0;
+    case DLMS_DATA_TYPE_DATE:
+        json_time("date", v->dateTime);
+        return 0;
+    case DLMS_DATA_TYPE_TIME:
+        json_time("time", v->dateTime);
+        return 0;
+    default:
+        set_error("unsupported variant type %d", v->vt);
+        return -1;
+    }
+}
+
+/*
+ * Serialises the value of the client's last complete reply as JSON into a
+ * buffer the module owns, returning its length; read it with
+ * dlms_client_copy_reply_json.
+ */
+int dlms_client_reply_json(int handle) {
+    if (handle < 0 || handle >= MAX_CLIENTS || !clients[handle]) {
+        set_error("invalid client handle %d", handle);
+        return -1;
+    }
+    ClientSlot* slot = clients[handle];
+    if (!slot->reply || !slot->reply->complete) {
+        set_error("no complete reply; drive dlms_client_get_data until is_complete=1 first");
+        return -1;
+    }
+    if (!json_buf_ready) {
+        BYTE_BUFFER_INIT(&json_buf);
+        json_buf_ready = 1;
+    }
+    bb_clear(&json_buf);
+    if (json_variant(&slot->reply->dataValue) != 0) return -1;
+    return (int)json_buf.size;
+}
+
+/* Copies the JSON built by dlms_client_reply_json into `out`. */
+int dlms_client_copy_reply_json(uint8_t* out, int out_len) {
+    if (!json_buf_ready || out_len < (int)json_buf.size) {
+        set_error("output buffer too small for reply JSON (%d < %u)", out_len, json_buf.size);
+        return -1;
+    }
+    memcpy(out, json_buf.data, json_buf.size);
+    return 0;
+}
+
 /* ===== Server callbacks ===== */
+
 
 /*
  * Gurux declares these as extern in serverevents.h, so the linker requires
