@@ -11,6 +11,7 @@ export {
   Unit,
   DlmsErrorCode,
   DlmsException,
+  parseDlmsError,
 } from './types.js';
 export type {
   EmscriptenModule,

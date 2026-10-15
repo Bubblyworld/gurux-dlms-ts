@@ -185,6 +185,8 @@ void dlms_client_set_int(int handle, const char* setting, int value) {
     else if (strcmp(setting, "interfaceType") == 0)    s->interfaceType = (DLMS_INTERFACE_TYPE)value;
     else if (strcmp(setting, "outBufSize") == 0)      clients[handle]->outBufSize = value;
     else if (strcmp(setting, "security") == 0)        s->cipher.security = (DLMS_SECURITY)value;
+    else if (strcmp(setting, "autoIncreaseInvokeID") == 0) s->autoIncreaseInvokeID = (unsigned char)value;
+    else if (strcmp(setting, "invokeID") == 0)        s->invokeID = (unsigned char)value;
 }
 
 void dlms_client_set_str(int handle, const char* setting, const char* value) {
@@ -218,6 +220,8 @@ int dlms_client_get_int(int handle, const char* setting) {
     if (strcmp(setting, "authentication") == 0)        return (int)s->authentication;
     if (strcmp(setting, "interfaceType") == 0)         return (int)s->interfaceType;
     if (strcmp(setting, "outBufSize") == 0)           return clients[handle]->outBufSize;
+    if (strcmp(setting, "autoIncreaseInvokeID") == 0) return s->autoIncreaseInvokeID;
+    if (strcmp(setting, "invokeID") == 0)              return s->invokeID;
     return 0;
 }
 
@@ -496,6 +500,9 @@ int dlms_client_get_data(int handle, const uint8_t* data, int len,
     int ret = cl_getData(&slot->settings, &bb, slot->reply);
     bb_clear(&bb);
     if (ret != 0) {
+        // Drop whatever was accumulated so the next call starts a fresh reply.
+        reply_clear(slot->reply);
+        reply_init(slot->reply);
         set_error("DLMS:%d:cl_getData failed", ret);
         return ret;
     }

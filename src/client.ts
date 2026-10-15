@@ -1,7 +1,7 @@
 import { loadGuruxModule } from './module.js';
 import { DlmsObject } from './object.js';
 import type { EmscriptenModule, ClientOptions, GetDataResult, AssociationEntry } from './types.js';
-import { DlmsException, InterfaceType, DLMS_ERROR_MESSAGES, ACSE_ERROR_RANGE } from './types.js';
+import { DlmsException, InterfaceType, parseDlmsError } from './types.js';
 import type { DlmsValue } from './value.js';
 
 const DEFAULT_OUT_BUF_SIZE = 8192;
@@ -433,33 +433,7 @@ export class DlmsClient {
 
   private throwError(): never {
     const err = this.module.ccall('dlms_last_error', 'string', [], []) as string;
-    if (!err) {
-      throw new DlmsException({ kind: 'wasm', message: 'unknown WASM error' });
-    }
-
-    const dlmsMatch = err.match(/^DLMS:(-?\d+):(.+)$/);
-    if (dlmsMatch) {
-      const errorCode = parseInt(dlmsMatch[1], 10);
-      const detail = dlmsMatch[2];
-      const humanMessage = DLMS_ERROR_MESSAGES[errorCode];
-      if (humanMessage) {
-        if (errorCode >= ACSE_ERROR_RANGE.min && errorCode <= ACSE_ERROR_RANGE.max) {
-          throw new DlmsException({
-            kind: 'acse',
-            diagnostic: errorCode - ACSE_ERROR_RANGE.min,
-            message: `${humanMessage} (${detail})`,
-          });
-        }
-        throw new DlmsException({
-          kind: 'cosem',
-          errorCode,
-          message: `${humanMessage} (${detail})`,
-        });
-      }
-      throw new DlmsException({ kind: 'wasm', message: `${detail} (error code: ${errorCode})` });
-    }
-
-    throw new DlmsException({ kind: 'wasm', message: err });
+    throw new DlmsException(parseDlmsError(err));
   }
 
   private ensureNotFreed(): void {
