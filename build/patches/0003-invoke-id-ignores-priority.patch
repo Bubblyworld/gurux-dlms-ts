@@ -1,0 +1,23 @@
+From: local <local@gurux-dlms-ts>
+Subject: Match replies on the invoke ID alone, ignoring priority and service class
+
+dlms_verifyInvokeId compared the whole invoke-id-and-priority byte of a
+reply with the one the client sent. The Hexing HXP100DII answers a 0xC1
+request with 0x41, clearing the priority bit, so every reply it sent was
+rejected as answering an earlier request.
+
+Compare the low four bits only, which hold the invoke ID.
+
+--- a/development/src/dlms.c
++++ b/development/src/dlms.c
+@@ -3913,7 +3913,9 @@ int dlms_getWrapperFrame(
+ 
+ int dlms_verifyInvokeId(dlmsSettings* settings, gxReplyData* reply)
+ {
+-    if (settings->autoIncreaseInvokeID && reply->invokeId != dlms_getInvokeIDPriority(settings, 0))
++    // Compare only the invoke ID; some meters (e.g. Hexing HXP100DII) clear
++    // the priority bit in their replies.
++    if (settings->autoIncreaseInvokeID && (reply->invokeId & 0x0F) != (settings->invokeID & 0x0F))
+     {
+         //Invalid invoke ID.
+         return DLMS_ERROR_CODE_INVALID_INVOKE_ID;

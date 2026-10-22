@@ -5,6 +5,27 @@ import { DlmsServer } from '../src/server.js';
 import { DlmsObject } from '../src/object.js';
 import { DlmsErrorCode, DlmsException, ObjectType } from '../src/types.js';
 
+/** CRC-16/X.25, as HDLC frames carry it. */
+function crc(bytes: Uint8Array): number {
+  let fcs = 0xffff;
+  for (const b of bytes) {
+    fcs ^= b;
+    for (let i = 0; i < 8; i++) fcs = fcs & 1 ? (fcs >> 1) ^ 0x8408 : fcs >> 1;
+  }
+  return ~fcs & 0xffff;
+}
+
+/** A copy of the get-response frame `reply` with its invoke-id-and-priority byte passed through `edit`. */
+function withInvokeByte(reply: Uint8Array, edit: (byte: number) => number): Uint8Array {
+  const out = new Uint8Array(reply);
+  const at = Buffer.from(out).indexOf(Buffer.from([0xe6, 0xe7, 0x00, 0xc4, 0x01])) + 5;
+  out[at] = edit(out[at]);
+  const fcs = crc(out.subarray(1, out.length - 3));
+  out[out.length - 3] = fcs & 0xff;
+  out[out.length - 2] = fcs >> 8;
+  return out;
+}
+
 async function associated() {
   const module = await loadGuruxModule();
   const server = await DlmsServer.create(module);
@@ -68,6 +89,15 @@ describe('invoke-id tracking', () => {
     });
 
     expect(client.getData(current).complete).toBe(true);
+    client.updateValue(register, 2, new Uint8Array(0));
+    expect(register.getInt(2)).toBe(1234);
+    free();
+  });
+
+  it('accepts a reply whose priority and service class bits differ from the request', async () => {
+    const { client, server, read, register, free } = await associated();
+    const reply = withInvokeByte(server.handleRequest(await read()), (b) => b & 0x0f);
+    expect(client.getData(reply).complete).toBe(true);
     client.updateValue(register, 2, new Uint8Array(0));
     expect(register.getInt(2)).toBe(1234);
     free();
