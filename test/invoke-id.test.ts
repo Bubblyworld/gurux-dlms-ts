@@ -103,3 +103,25 @@ describe('invoke-id tracking', () => {
     free();
   });
 });
+
+describe('invoke id of a block transfer', () => {
+  /** The invoke id a get-request frame carries. */
+  function invokeIdOf(frame: Uint8Array): number {
+    const at = Buffer.from(frame).indexOf(Buffer.from([0xe6, 0xe6, 0x00, 0xc0])) + 5;
+    return frame[at] & 0xf;
+  }
+
+  /** `moreData` of a reply with further data blocks to fetch. */
+  const DATA_BLOCK = 2;
+
+  it('asks for the next block under the invoke id of the request it continues', async () => {
+    const { client, read, free } = await associated();
+    const requestId = invokeIdOf(read());
+
+    expect(invokeIdOf(client.receiverReady(DATA_BLOCK)[0])).toBe(requestId);
+    expect(invokeIdOf(client.receiverReady(DATA_BLOCK)[0])).toBe(requestId);
+    expect(client.getInt('autoIncreaseInvokeID')).toBe(1);
+    expect(invokeIdOf(read())).toBe((requestId + 1) & 0xf);
+    free();
+  });
+});

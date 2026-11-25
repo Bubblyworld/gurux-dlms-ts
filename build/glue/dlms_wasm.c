@@ -519,8 +519,13 @@ int dlms_client_receiver_ready(int handle, int type,
     }
     gxByteBuffer bb;
     bb_init(&bb);
-    int ret = cl_receiverReady(&clients[handle]->settings,
-                               (DLMS_DATA_REQUEST_TYPES)type, &bb);
+    /* A request for the next block continues the request before it, so it
+       keeps that request's invoke id; gurux would otherwise advance it. */
+    dlmsSettings* s = &clients[handle]->settings;
+    unsigned char auto_increase = s->autoIncreaseInvokeID;
+    s->autoIncreaseInvokeID = 0;
+    int ret = cl_receiverReady(s, (DLMS_DATA_REQUEST_TYPES)type, &bb);
+    s->autoIncreaseInvokeID = auto_increase;
     if (ret != 0) {
         set_error("DLMS:%d:cl_receiverReady failed", ret);
         bb_clear(&bb);
